@@ -9,8 +9,8 @@
 - 只安装 `requirements.txt` 声明的核心依赖：
 
   ```bash
-  git clone __REPO_URL__
-  cd __REPO_NAME__
+  git clone https://github.com/Nephets1010/multimodal-agent-platform
+  cd multimodal-agent-platform
   python3 -m pip install -r requirements.txt
   ```
 
@@ -84,4 +84,5 @@
 - 增量 PRD：`docs/PRD-OPENSOURCE.md`；行为契约（最高优先级）：`docs/PRD.md` §4
 - 架构与任务分解：`docs/ARCHITECTURE.md`／`docs/TASKS.md`、增量版 `docs/ARCHITECTURE-OPENSOURCE.md`／`docs/TASKS-OPENSOURCE.md`
 - 占位符登记与替换后校验：`docs/REPO_METADATA.md`
-- 社区链接：Issues／Pull Requests／CI 检查均由 `__REPO_URL__` 派生，见 `docs/REPO_METADATA.md`。
+- 社区链接：Issues／Pull Requests／CI 检查的完整 URL 见 `pyproject.toml` 的 `[project.urls]`
+  与 `docs/REPO_METADATA.md` 的 S2 执行记录。

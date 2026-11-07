@@ -1,5 +1,7 @@
 # 多模态通用智能体开发平台
 
+[![CI](https://github.com/Nephets1010/multimodal-agent-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Nephets1010/multimodal-agent-platform/actions/workflows/ci.yml) [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE) ![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)
+
 四模态统一接入 → 统一表征与多模态 RAG → Planner / Worker / Reflector 智能体编排
 → 工具调用 → SSE 流式统一应答 → 轨迹回放与自动评测。
 
@@ -182,7 +184,7 @@ DEMO_MODE=1 python3 -m pytest -q tests
 
 | 徽章 | 说明 |
 | --- | --- |
-| CI | `![CI](__CI_BADGE_URL__)`，链接到 `__REPO_URL__/actions/workflows/ci.yml`；`__CI_BADGE_URL__` 由 `__REPO_URL__` 单向派生 |
+| CI | [![CI](https://github.com/Nephets1010/multimodal-agent-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/Nephets1010/multimodal-agent-platform/actions/workflows/ci.yml) · 工作流文件 `.github/workflows/ci.yml` |
 | License | **Apache-2.0**，见 `LICENSE`（完整原文）与 `NOTICE`（版权与依赖归属） |
 
 本项目采用 **Apache License 2.0**；`pyproject.toml` 的 `license`、`CITATION.cff` 的 `license`、
@@ -192,8 +194,8 @@ DEMO_MODE=1 python3 -m pytest -q tests
 ### 8.2 克隆与快速开始
 
 ```bash
-git clone __REPO_URL__
-cd __REPO_NAME__
+git clone https://github.com/Nephets1010/multimodal-agent-platform
+cd multimodal-agent-platform
 python3 -m pip install -r requirements.txt
 ```
 
@@ -217,14 +219,14 @@ SSE 统一应答 → 轨迹回放与自动评测。
 ### 8.4 贡献方式
 
 贡献流程、代码风格、零改动清单与测试要求见 `CONTRIBUTING.md`；
-四条 DEMO 等价命令见 §1。Issue／Pull Request／CI 检查链接由 `__REPO_URL__` 派生，
-统一登记在 `docs/REPO_METADATA.md`。提交前请确保
+四条 DEMO 等价命令见 §1。Issue／Pull Request／CI 检查的完整 URL 见 `pyproject.toml` 的
+`[project.urls]` 与 `docs/REPO_METADATA.md` 的 S2 执行记录。提交前请确保
 `DEMO_MODE=1 python3 -m pytest -q tests` 与 `python3 -m compileall -q app scripts tests` 全绿。
 
 ### 8.5 行为准则
 
 社区行为准则见 `CODE_OF_CONDUCT.md`（自写精简版：适用范围／行为准则／举报渠道）。
-举报请走私密渠道 `__SECURITY_CONTACT__`，不要在公开 Issue 中讨论具体举报内容。
+举报请走私密渠道 `stephen_rong@foxmail.com`，不要在公开 Issue 中讨论具体举报内容。
 
 ### 8.6 安全披露
 
@@ -246,8 +248,8 @@ HOST=127.0.0.1 PORT=8000 DEMO_MODE=1 python3 -m app.main
 
 - 引用本软件：见 `CITATION.cff`（CFF 1.2.0，可用 PyYAML 解析）。
 - 变更记录：见 `CHANGELOG.md`（Keep a Changelog 风格，`[1.0.0]` 记录本期补齐）。
-- 版本比较与 Release 链接由 `__REPO_URL__` 派生，发布日期用 `__RELEASE_DATE__` 占位符，
-  均登记在 `docs/REPO_METADATA.md`。
+- 版本比较与 Release 链接见 `CHANGELOG.md` 底部；发布日期为 2026-11-07，仓库地址与派生规则见
+  `docs/REPO_METADATA.md` 的 S2 执行记录。
 
 ### 8.8 致谢
 

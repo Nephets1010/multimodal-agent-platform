@@ -6,10 +6,10 @@
 
 ## [Unreleased]
 
-暂无。地址与身份占位符（`docs/REPO_METADATA.md` 登记的 12 个 RP 点）将在发布前由维护者
-一次性全量替换；替换完成前不得推送。
+暂无。v1.0.0 已完成 S2 占位符全量替换并发布；仓库地址与身份取值见
+`docs/REPO_METADATA.md` 的 S2 执行记录。
 
-## [1.0.0] - __RELEASE_DATE__
+## [1.0.0] - 2026-11-07
 
 ### 新增 · 开源要素（9 项）
 
@@ -60,5 +60,5 @@
 本期**未**新增鉴权／多租户／会话持久化／并发写入锁，**未**接入真实增量输出，
 **未**宣称生产可用或模型准确率；DEMO stub 语义质量仍不等价于真实多模态大模型。
 
-[Unreleased]: __REPO_URL__/compare/v1.0.0...__DEFAULT_BRANCH__
-[1.0.0]: __REPO_URL__/releases/tag/v1.0.0
+[Unreleased]: https://github.com/Nephets1010/multimodal-agent-platform/compare/v1.0.0...main
+[1.0.0]: https://github.com/Nephets1010/multimodal-agent-platform/releases/tag/v1.0.0

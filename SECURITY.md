@@ -14,8 +14,8 @@
 
 **请不要用公开 GitHub Issue 报告安全问题。** 请通过以下私密渠道之一提交：
 
-- `__SECURITY_CONTACT__`（邮箱或私密报告入口；真实值见 `docs/REPO_METADATA.md`，发布前替换）
-- 由 `__REPO_URL__` 派生的 GitHub Security Advisories 私密报告入口：`__REPO_URL__/security/advisories/new`
+- `stephen_rong@foxmail.com`（私密邮箱，请勿在公开场合发送漏洞细节）
+- GitHub Security Advisories 私密报告入口：`https://github.com/Nephets1010/multimodal-agent-platform/security/advisories/new`
 
 **响应预期**：维护者会在收到报告后尽快确认收悉，并给出初步判断与后续修复／缓解计划。
 本项目为教学／作品集用途，不承诺固定 SLA，也不会因为报告未被立即处理而将其视为已接受风险。

@@ -116,4 +116,37 @@ __OWNER__ / __REPO_NAME__ := 由用户提供的 URL 解析，不得反推
 - `pyproject.toml` 无 `[build-system]`，`requirements.txt` 仍是唯一依赖来源；`[tool.pytest.ini_options]` 仅 `testpaths = ["tests"]`。
 - 占位符替换**不得**触碰零改动清单：`web/index.html`、`requirements.txt`、`samples/knowledge.txt`、`docs/reference/*`（含 `platform-spec-README.md:648`）、`Makefile` 四目标命令、`config/settings.yaml`。
 
-> **文档状态**：占位符版定稿（v1.1 基线），待用户提供地址后由主理人执行 S2；本表随 S2 更新为真实值。
+> **文档状态**：S2 已执行完毕（见 §6），交付文件中的占位符均已替换为真实值；本表 §1 符号定义作为历史索引保留。
+
+
+---
+
+## 6. S2 执行记录（主理人执行）
+
+用户提供账号主页 `https://github.com/Nephets1010` 并授权主理人定义仓库名；目标分支要求与本地一致。
+经实测该账号下无同名仓库（GitHub API 404），故新建公开仓库。
+
+| 符号 | 实际取值 | 依据 |
+| --- | --- | --- |
+| `__REPO_URL__` | `https://github.com/Nephets1010/multimodal-agent-platform` | 用户账号 + 主理人定义仓库名（与本地目录、pyproject 的 name 一致） |
+| `__OWNER__` | `Nephets1010` | 由用户提供账号解析 |
+| `__REPO_NAME__` | `multimodal-agent-platform` | 由 URL 末段解析 |
+| `__CI_BADGE_URL__` | `https://github.com/Nephets1010/multimodal-agent-platform/actions/workflows/ci.yml/badge.svg` | 由 `__REPO_URL__` 单向派生 |
+| `__DEFAULT_BRANCH__` | `main` | 用户要求与本地一致，本地分支为 main |
+| `__AUTHOR_NAME__` | `Nephets1010` | 用户确认的 git 全局身份 |
+| `__AUTHOR_EMAIL__` | `stephen_rong@foxmail.com` | 用户确认的 git 全局身份邮箱（已知悉公开可见） |
+| `__COPYRIGHT_YEAR__` | `2026` | 当前年份 |
+| `__COPYRIGHT_HOLDER__` | `Nephets1010` | 与作者名一致 |
+| `__SECURITY_CONTACT__` | `stephen_rong@foxmail.com` | 真实可收信的私密举报渠道；另有 GitHub Security Advisories 入口 |
+| `__RELEASE_DATE__` | `2026-11-07` | 由 date 命令实取，不臆造 |
+
+**替换范围**：8 个实际产物（README.md / pyproject.toml / CITATION.cff / CONTRIBUTING.md /
+CODE_OF_CONDUCT.md / SECURITY.md / CHANGELOG.md / NOTICE）；LICENSE 与 ci.yml 本就不含符号。
+本登记表与 docs 下三份 OPENSOURCE 设计文档中的符号属定义与说明性文字，按 S2 检查口径排除。
+
+**同步修正**：把「发布前替换 / 占位符版 / 替换完成前不得推送」等与最终状态矛盾的句子改写为真实状态
+（README §8.1/§8.4/§8.7、pyproject 注释、SECURITY §2、CODE_OF_CONDUCT §3、
+CONTRIBUTING 社区链接、CHANGELOG Unreleased），并在 README 首屏补 CI／License／Python 徽章。
+
+**校验**：S2 残留检查命令（§4 第 3 条）实跑 0 残留；12 处 URL 完全一致；无旧分支写法；
+TOML／CFF 可解析；五步验证全绿。

@@ -17,10 +17,10 @@ license = { text = "Apache-2.0" }
 requires-python = ">=3.11"
 
 authors = [
-    { name = "__AUTHOR_NAME__", email = "__AUTHOR_EMAIL__" },
+    { name = "Nephets1010", email = "stephen_rong@foxmail.com" },
 ]
 maintainers = [
-    { name = "__AUTHOR_NAME__", email = "__AUTHOR_EMAIL__" },
+    { name = "Nephets1010", email = "stephen_rong@foxmail.com" },
 ]
 
 keywords = [
@@ -49,13 +49,13 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Application Frameworks",
 ]
 
-# 全部由 __REPO_URL__ 单向派生；不硬编码真实／推测 URL（RP-04）。
+# S2 已一次性替换为真实仓库地址（见 docs/REPO_METADATA.md）；分支段为 main。
 [project.urls]
-Homepage = "__REPO_URL__"
-Repository = "__REPO_URL__"
-Issues = "__REPO_URL__/issues"
-Changelog = "__REPO_URL__/blob/__DEFAULT_BRANCH__/CHANGELOG.md"
-Documentation = "__REPO_URL__/blob/__DEFAULT_BRANCH__/README.md"
+Homepage = "https://github.com/Nephets1010/multimodal-agent-platform"
+Repository = "https://github.com/Nephets1010/multimodal-agent-platform"
+Issues = "https://github.com/Nephets1010/multimodal-agent-platform/issues"
+Changelog = "https://github.com/Nephets1010/multimodal-agent-platform/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/Nephets1010/multimodal-agent-platform/blob/main/README.md"
 
 # 仅列 requirements.txt 注释区已声明的 6 个可选包（含其版本下限），
 # 不设为必需、不引入新包名；DEMO_MODE=1 下可选依赖全部缺失也自动降级。
