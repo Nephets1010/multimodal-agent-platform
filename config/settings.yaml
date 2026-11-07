@@ -1,0 +1,74 @@
+# ============================================================
+# 多模态通用智能体开发平台 · 主配置
+# 版本化：config_version 必须为 1（启动期校验）
+# 覆盖规则：.env / os.environ 短别名（规格 §4.6，不带前缀）
+#           + MAP_<SECTION>__<KEY> 项目前缀通用兜底（避免与宿主同名变量冲突）
+# DEMO_MODE=1 时最后一步无条件锁定 template / stub / memory
+# ============================================================
+config_version: 1
+
+server:
+  host: "0.0.0.0"                       # 规格 §2 保持 0.0.0.0；可用 HOST 覆盖收紧
+  port: 8000                            # 可用 PORT 覆盖
+
+demo:
+  enabled: true                         # DEMO_MODE=1（优先级最高）
+
+llm:
+  backend: template                     # api | template          [LLM_BACKEND]
+  api_key: ""                           # 敏感，仅占位           [LLM_API_KEY]
+  base_url: ""                          #                         [LLM_BASE_URL]
+  model: ""                             #                         [LLM_MODEL]
+  vision_model: ""                      # 留空复用 model          [LLM_VISION_MODEL]
+  timeout_seconds: 10.0
+  max_tokens: 512
+
+encoder:
+  backend: stub                         # api | transformers | stub [ENCODER_BACKEND]
+  dim: 256                              # StubEncoder 固定维度
+  local_model_path: ""                  # transformers 本地权重目录，local_files_only=True
+  timeout_seconds: 10.0
+
+vector_store:
+  backend: memory                       # chroma | memory         [VECTOR_BACKEND]
+  soft_limit: 10000                     # Q11：接近时 warning + last_debug 标注，不改检索口径
+  index_path: "data/vector_index.json"
+  top_k: 5
+
+retrieval:
+  dense_weight: 0.6
+  bm25_weight: 0.4
+  dense_floor: 1.0e-9                   # 稠密得分全零判定阈值
+  substring_boost: 0.15                 # 重排：子串命中加权
+  snippet_chars: 160
+
+ingest:
+  chunk_size: 320
+  chunk_overlap: 64
+  allowed_extensions:                   # Q3 白名单（保守默认）
+    text:  [".txt", ".md", ".json", ".csv", ".text"]
+    image: [".png", ".jpg", ".jpeg", ".webp", ".bmp"]
+    audio: [".wav"]
+    video: [".mp4", ".avi", ".mov", ".mkv", ".webm"]
+  max_file_bytes: 10485760              # 10 MiB
+  max_total_bytes: 52428800             # 50 MiB
+  max_files: 20
+  tmp_dir: "data/tmp"                   # 临时文件隔离目录，finally 清理
+
+agent:
+  max_steps: 8                          # Q11
+  tool_timeout_seconds: 3.0             # Q11
+  max_query_chars: 2000
+  token_chunk_chars: 24                 # SSE token 定长切片
+  human_in_loop: false                  # HUMAN_IN_LOOP=1
+
+observability:
+  trace_path: "data/traces.jsonl"
+  eval_report_path: "data/eval_report.json"
+  log_level: "INFO"
+  log_json: true
+  redact_keys: ["LLM_API_KEY", "Authorization", "Bearer", "token", "password", "secret", "api_key", ".env"]
+
+eval:
+  samples_path: "samples/eval.jsonl"
+  default_samples: 8

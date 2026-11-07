@@ -1,0 +1,32 @@
+多模态通用智能体开发平台 - 内置知识样例
+
+平台把文本、图像、音频、视频四类资源统一解析为 ModalityChunk 结构，
+每个切片包含 chunk_id、source_id、modality、content 与 metadata 五个核心字段。
+统一抽象层屏蔽了模态差异，使下游编码器、向量库、检索器与智能体完全解耦，
+新增一种模态只需要实现 BaseModalityProcessor.process 接口即可。
+
+统一表征层提供 StubEncoder 与 APIEncoder 两种实现。StubEncoder 使用哈希
+词频向量，无需 GPU 与模型权重，结果完全确定性可复现；生产模式可切换到
+OpenAI 兼容的 embeddings 接口或本地 transformers 权重。向量库默认使用
+InMemoryVectorStore 并持久化到 data/vector_index.json，可选 Chroma 适配。
+
+检索采用稠密向量余弦相似度与简化版 BM25 关键词打分的混合策略，
+经过重排序后输出证据块；当稠密检索无结果或全部得分为零时自动回退到
+纯关键词文本检索，避免纯向量误召回导致答非所问。
+
+智能体编排采用 Planner、Worker、Reflector 三节点状态机与条件边。
+Planner 负责生成工具调用计划，Worker 负责执行工具并回填结果，Reflector
+负责判断是否需要重新规划以及合成最终答案。状态机内置最大步数保护、
+工具白名单、单工具超时与人工介入断点，状态可完整序列化便于轨迹回放。
+
+内置四个工具：calculator 使用受限 AST 做安全四则运算，current_time
+返回 UTC 与本地时间，knowledge_search 调用混合检索器，text_stats
+提供字数统计与抽取式摘要。所有工具都有 JSON Schema 描述与参数校验。
+
+观测层把每一步节点执行写入 data/traces.jsonl，包含 trace_id、节点名、
+状态快照与耗时，可通过 /v1/trace/{trace_id} 回放。评测脚本基于自带
+样例集计算命中率、平均步数与平均延迟，用于答辩时的量化复盘。
+
+默认 DEMO_MODE=1 时不依赖任何大模型 API Key、不依赖 GPU、不下载权重、
+不联网，即可端到端跑通四模态接入、多模态 RAG、Agent 编排、工具调用、
+SSE 流式输出与统一应答全链路。

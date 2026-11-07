@@ -1,0 +1,8 @@
+{"query": "请检索多模态平台的混合检索说明，并计算 12*8 的结果", "expected_keywords": ["混合检索", "96"], "expected_tools": ["knowledge_search", "calculator"], "expected_answer_contains": []}
+{"query": "计算 12*8 的结果", "expected_keywords": ["96", "结论"], "expected_tools": ["calculator"], "expected_answer_contains": []}
+{"query": "现在几点了", "expected_keywords": ["结论", "推理轨迹"], "expected_tools": ["current_time"], "expected_answer_contains": []}
+{"query": "请统计这段文字的字数并给出摘要", "expected_keywords": ["字数", "结论"], "expected_tools": ["text_stats"], "expected_answer_contains": []}
+{"query": "你好，请简单回应一下", "expected_keywords": ["结论", "推理轨迹"], "expected_tools": [], "expected_answer_contains": []}
+{"query": "介绍一下平台的统一抽象层", "expected_keywords": ["统一抽象层", "结论"], "expected_tools": ["knowledge_search"], "expected_answer_contains": []}
+{"query": "请计算 100/4 的结果并说明混合检索策略", "expected_keywords": ["25", "混合检索"], "expected_tools": ["calculator", "knowledge_search"], "expected_answer_contains": []}
+{"query": "查询当前时间并检索平台知识", "expected_keywords": ["查询", "推理轨迹"], "expected_tools": ["current_time", "knowledge_search"], "expected_answer_contains": []}

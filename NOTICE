@@ -1,0 +1,23 @@
+多模态通用智能体开发平台 (Multimodal Agent Platform)
+Copyright (c) __COPYRIGHT_YEAR__ __COPYRIGHT_HOLDER__
+
+This product includes software developed for the
+"多模态通用智能体开发平台" project.
+
+Licensed under the Apache License, Version 2.0 (Apache-2.0).
+See the LICENSE file for the full license text.
+
+Core dependencies (installed via requirements.txt):
+  fastapi, uvicorn, pydantic, python-multipart, numpy,
+  pillow, PyYAML, httpx, pytest, opencv-python-headless
+
+Optional dependencies (NOT installed in DEMO_MODE=1;
+detected via importlib.util.find_spec and degraded to built-in fallbacks):
+  langgraph, chromadb, openai-whisper, transformers, torch, openai
+
+The optional dependencies listed above are not redistributed with this
+project; each retains its own license as published by its respective owner.
+Core dependencies likewise retain their respective upstream licenses.
+
+The copyright year and holder above are placeholders registered in
+docs/REPO_METADATA.md; they must be replaced before any public release.

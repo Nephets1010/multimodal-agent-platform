@@ -1,0 +1,78 @@
+# 多模态通用智能体开发平台 · PEP 621 静态项目元信息
+#
+# 本仓库以 requirements.txt + 四条 python3 命令运行，不执行打包安装。
+# 主理人已裁决：不加 [build-system]（Q-OS5 方案 A）；[project.scripts] 仅作静态声明，
+# 不产生可安装 console script；CI 与 DEMO 一律 `pip install -r requirements.txt`
+# 后使用 `python3 -m pytest -q tests` / `python3 scripts/demo.py` 等命令。
+#
+# 作者、版权与仓库地址均为占位符，集中登记在 docs/REPO_METADATA.md。
+# 地址到位后由主理人执行 S2 一次性全量替换，替换完成前不得推送。
+
+[project]
+name = "multimodal-agent-platform"
+version = "1.0.0"
+description = "四模态统一接入 → 多模态 RAG → Agent 编排 → SSE 统一应答的可运行教学／作品集项目"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.11"
+
+authors = [
+    { name = "__AUTHOR_NAME__", email = "__AUTHOR_EMAIL__" },
+]
+maintainers = [
+    { name = "__AUTHOR_NAME__", email = "__AUTHOR_EMAIL__" },
+]
+
+keywords = [
+    "multimodal",
+    "rag",
+    "agent",
+    "fastapi",
+    "sse",
+    "demo",
+    "retrieval-augmented-generation",
+    "portfolio",
+]
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Framework :: FastAPI",
+    "Topic :: Education",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+
+# 全部由 __REPO_URL__ 单向派生；不硬编码真实／推测 URL（RP-04）。
+[project.urls]
+Homepage = "__REPO_URL__"
+Repository = "__REPO_URL__"
+Issues = "__REPO_URL__/issues"
+Changelog = "__REPO_URL__/blob/__DEFAULT_BRANCH__/CHANGELOG.md"
+Documentation = "__REPO_URL__/blob/__DEFAULT_BRANCH__/README.md"
+
+# 仅列 requirements.txt 注释区已声明的 6 个可选包（含其版本下限），
+# 不设为必需、不引入新包名；DEMO_MODE=1 下可选依赖全部缺失也自动降级。
+[project.optional-dependencies]
+graph = ["langgraph>=0.2"]
+vector = ["chromadb>=0.5"]
+asr = ["openai-whisper>=20231117"]
+encoder = ["transformers>=4.40", "torch>=2.0"]
+llm = ["openai>=1.0"]
+
+# scripts/demo.py 已存在 main() -> int；evaluator.py 无 main()，保持
+# `python3 -m app.observability.evaluator`，不为其造入口点。
+[project.scripts]
+multimodal-agent-demo = "scripts.demo:main"
+
+# 最小工具配置：只影响「不带路径参数运行 pytest」时的默认收集路径。
+# 不加 addopts / strict-markers / filterwarnings 等会改变用例结果的选项；
+# 不引入 coverage 包，CI 也不执行 coverage。
+[tool.pytest.ini_options]
+testpaths = ["tests"]

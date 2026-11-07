@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>多模态通用智能体开发平台 · 控制台</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel2: #1c2330; --line: #2b3444;
+    --text: #e6edf3; --muted: #8b98a9; --accent: #58a6ff; --accent2: #3fb950;
+    --warn: #d29922; --danger: #f85149;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  header { padding: 18px 26px; border-bottom: 1px solid var(--line);
+           display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: .5px; }
+  header .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .badge { font-size: 12px; padding: 5px 11px; border-radius: 20px;
+           background: rgba(63,185,80,.12); border: 1px solid rgba(63,185,80,.45); color: var(--accent2); }
+  .badge.off { background: rgba(210,153,34,.12); border-color: rgba(210,153,34,.45); color: var(--warn); }
+  main { display: grid; grid-template-columns: 340px 1fr; gap: 16px; padding: 16px 26px 40px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .card h2 { font-size: 13px; margin: 0 0 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 5px; }
+  input[type=text], textarea, select, input[type=file] {
+    width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 9px 10px; font-size: 13px; outline: none; font-family: inherit; }
+  textarea { resize: vertical; min-height: 74px; }
+  input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+  button { background: var(--accent); color: #06121f; border: 0; border-radius: 6px;
+           padding: 9px 14px; font-size: 13px; font-weight: 600; cursor: pointer; margin: 10px 8px 0 0; }
+  button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+  button:hover { opacity: .88; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .check { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-top: 10px; }
+  .check input { width: auto; }
+  .meta { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .meta b { color: var(--text); font-weight: 600; }
+  .answer { white-space: pre-wrap; line-height: 1.75; font-size: 14px;
+            background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+            padding: 14px; min-height: 130px; }
+  .list { font-size: 12px; line-height: 1.7; }
+  .item { border-left: 2px solid var(--accent); padding: 6px 10px; margin: 8px 0;
+          background: var(--panel2); border-radius: 0 6px 6px 0; color: var(--muted); }
+  .item b { color: var(--text); }
+  .trace { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
+           line-height: 1.7; max-height: 230px; overflow: auto; color: var(--muted);
+           background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+  .status { font-size: 12px; color: var(--warn); min-height: 18px; margin-top: 8px; }
+  .pill { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px;
+          border: 1px solid var(--line); color: var(--muted); margin-right: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>多模态通用智能体开发平台</h1>
+    <div class="sub">Text / Image / Audio / Video → 统一表征 → 混合检索 RAG → Planner · Worker · Reflector → 统一应答</div>
+  </div>
+  <div class="row">
+    <span class="badge off" id="healthBadge">检查中…</span>
+    <button class="ghost" onclick="showTools()">工具清单</button>
+    <button class="ghost" onclick="runEval()">运行评测</button>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="card">
+      <h2>① 多模态资源入库</h2>
+      <label>选择文件（可多选，自动识别模态）</label>
+      <input id="files" multiple type="file">
+      <label>或直接输入文本</label>
+      <textarea id="ingestText" placeholder="粘贴一段文本，将按段落切分并写入向量索引"></textarea>
+      <label>来源标记</label>
+      <input id="sourceTag" type="text" value="webui">
+      <button onclick="doIngest()">上传到 /v1/ingest</button>
+      <div class="status" id="ingestStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2>② 提问</h2>
+      <label>问题</label>
+      <textarea id="query" placeholder="例如：请检索平台资料并计算 12*8 的结果"></textarea>
+      <label>会话 ID</label>
+      <input id="sessionId" type="text" value="web-session-1">
+      <label>检索模态过滤（空 = 全部）</label>
+      <select id="modality">
+        <option value>全部模态</option>
+        <option value="text">text</option>
+        <option value="image">image</option>
+        <option value="audio">audio</option>
+        <option value="video">video</option>
+      </select>
+      <label class="check"><input checked id="stream" type="checkbox"> SSE 流式输出</label>
+      <div>
+        <button onclick="doChat()">发送到 /v1/chat</button>
+        <button class="ghost" onclick="showTrace()">回放轨迹</button>
+      </div>
+      <div class="status" id="chatStatus"></div>
+    </div>
+
+    <div class="card">
+      <h2>运行信息</h2>
+      <div class="list" id="healthInfo">加载中…</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>统一应答</h2>
+      <div class="meta">
+        <span>trace_id: <b id="mTrace">—</b></span>
+        <span>步数: <b id="mSteps">—</b></span>
+        <span>耗时: <b id="mLatency">—</b></span>
+        <span>状态: <b id="mStatus">—</b></span>
+        <span>输出模态: <b id="mModality">—</b></span>
+        <span>图后端: <b id="mBackend">—</b></span>
+      </div>
+      <div class="answer" id="answer">等待提问…</div>
+    </div>
+
+    <div class="card">
+      <h2>引用证据</h2>
+      <div class="list" id="evidences">—</div>
+    </div>
+
+    <div class="card">
+      <h2>工具调用与结果</h2>
+      <div class="list" id="tools">—</div>
+    </div>
+
+    <div class="card">
+      <h2>执行轨迹（实时 step 事件）</h2>
+      <div class="trace" id="trace">—</div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let lastTraceId = "";
+let stepLines = [];
+
+function esc(text) {
+  return String(text === undefined || text === null ? "" : text)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+async function refreshHealth() {
+  try {
+    const res = await fetch("/health");
+    const data = await res.json();
+    const badge = $("healthBadge");
+    badge.textContent = data.demo_mode ? "DEMO_MODE=1 · 零依赖" : "生产模式";
+    badge.className = "badge" + (data.demo_mode ? "" : " off");
+    const c = data.components || {};
+    $("healthInfo").innerHTML =
+      `<div class="item"><b>图编排</b> ${esc(c.graph)} · 最大步数保护已启用</div>` +
+      `<div class="item"><b>编码器 / 向量库</b> ${esc(c.encoder)} / ${esc(c.vector)}（索引切片 ${esc(c.index_chunks)}）</div>` +
+      `<div class="item"><b>生成器</b> ${esc(c.llm)} · <b>langgraph</b> ${esc(c.langgraph)} · <b>chromadb</b> ${esc(c.chromadb)} · <b>whisper</b> ${esc(c.whisper)}</div>` +
+      `<div class="item"><b>cv2</b> ${esc(c.cv2)} · <b>transformers</b> ${esc(c.transformers)} · <b>openai</b> ${esc(c.openai)}</div>`;
+  } catch (err) {
+    $("healthBadge").textContent = "服务不可用";
+    $("healthInfo").textContent = String(err);
+  }
+}
+
+async function doIngest() {
+  const status = $("ingestStatus");
+  status.textContent = "上传中…";
+  const form = new FormData();
+  for (const file of $("files").files) form.append("files", file);
+  const text = $("ingestText").value.trim();
+  if (text) form.append("text", text);
+  form.append("source_tag", $("sourceTag").value || "webui");
+  try {
+    const res = await fetch("/v1/ingest", { method: "POST", body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+    const byModality = {};
+    (data.chunks || []).forEach(c => { byModality[c.modality] = (byModality[c.modality] || 0) + 1; });
+    status.textContent = `入库成功：${data.total} 个切片 ` +
+      Object.entries(byModality).map(([k, v]) => `${k}=${v}`).join(" / ");
+    refreshHealth();
+  } catch (err) {
+    status.textContent = "失败：" + err;
+  }
+}
+
+function renderMeta(data) {
+  lastTraceId = data.trace_id || "";
+  $("mTrace").textContent = data.trace_id || "—";
+  $("mSteps").textContent = data.steps ?? "—";
+  $("mLatency").textContent = (data.elapsed_ms ?? "—") + " ms";
+  $("mStatus").textContent = data.status || "—";
+  $("mModality").textContent = data.output_modality || "—";
+  $("mBackend").textContent = data.graph_backend || "—";
+}
+
+function renderResult(data) {
+  renderMeta(data);
+  $("answer").textContent = data.answer || "（空应答）";
+  const ev = data.evidences || [];
+  $("evidences").innerHTML = ev.length ? ev.map((e, i) =>
+    `<div class="item"><b>[${i + 1}] ${esc(e.modality)} · ${esc(e.score)}</b> ${esc(e.snippet)}` +
+    `<br><span class="pill">${esc(e.chunk_id)}</span></div>`).join("") : "（无证据，已走文本回退）";
+  const results = data.tool_results || [];
+  $("tools").innerHTML = results.length ? results.map(r =>
+    `<div class="item"><b>${esc(r.name)} ${r.ok ? "✓" : "✗"}</b> ${esc(r.elapsed_ms)} ms<br>${esc(
+      r.ok ? JSON.stringify(r.output).slice(0, 400) : r.error)}</div>`).join("") : "（本轮未调用工具）";
+}
+
+function parseFrame(frame) {
+  let eventName = "message";
+  let payload = "";
+  for (const line of frame.split("\n")) {
+    if (line.startsWith("event:")) eventName = line.slice(6).trim();
+    else if (line.startsWith("data:")) payload += line.slice(5).trim();
+  }
+  let data = {};
+  if (payload) {
+    try { data = JSON.parse(payload); } catch (e) { data = {}; }
+  }
+  return { event: eventName, data: data };
+}
+
+async function doChat() {
+  const query = $("query").value.trim();
+  if (!query) { $("chatStatus").textContent = "请输入问题"; return; }
+  const modality = $("modality").value;
+  const body = {
+    query: query,
+    session_id: $("sessionId").value || "default",
+    stream: $("stream").checked,
+    modalities: modality ? [modality] : []
+  };
+  stepLines = [];
+  $("trace").textContent = "";
+  $("answer").textContent = "";
+  $("chatStatus").textContent = "执行中…";
+
+  if (!body.stream) {
+    try {
+      const res = await fetch("/v1/chat", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(JSON.stringify(data));
+      renderResult(data);
+      $("trace").textContent = "非流式模式：执行轨迹请用「回放轨迹」查看。";
+      $("chatStatus").textContent = "完成";
+    } catch (err) { $("chatStatus").textContent = "失败：" + err; }
+    return;
+  }
+
+  try {
+    const res = await fetch("/v1/chat", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+    });
+    if (!res.ok || !res.body) throw new Error("SSE 连接失败 " + res.status);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() || "";
+      for (const part of parts) {
+        if (!part.trim()) continue;
+        const { event, data } = parseFrame(part);
+        if (event === "step") {
+          stepLines.push(`[${data.steps}] ${data.node} → ${data.next_node} · ${data.status} · ${esc(data.last_observation || "")}`);
+          $("trace").textContent = stepLines.join("\n");
+          $("trace").scrollTop = $("trace").scrollHeight;
+        } else if (event === "token") {
+          $("answer").textContent += (data.delta || "");
+        } else if (event === "human_required") {
+          $("chatStatus").textContent = "需要人工确认：" + (data.prompt || "");
+        } else if (event === "done") {
+          renderResult(data);
+          $("chatStatus").textContent = "完成（SSE）";
+        } else if (event === "meta") {
+          stepLines.push(`trace_id=${data.trace_id} backend=${data.backend}`);
+        }
+      }
+    }
+    if (!$("chatStatus").textContent) $("chatStatus").textContent = "流已结束";
+  } catch (err) { $("chatStatus").textContent = "失败：" + err; }
+}
+
+async function showTrace() {
+  if (!lastTraceId) { $("chatStatus").textContent = "还没有 trace_id"; return; }
+  try {
+    const res = await fetch("/v1/trace/" + encodeURIComponent(lastTraceId));
+    const data = await res.json();
+    $("trace").textContent = (data.events || []).map(e =>
+      `[${e.event}] ${e.node || ""} steps=${e.steps ?? "-"} status=${e.status ?? "-"}`).join("\n");
+    $("chatStatus").textContent = `轨迹回放：${data.count} 条事件`;
+  } catch (err) { $("chatStatus").textContent = "失败：" + err; }
+}
+
+async function showTools() {
+  try {
+    const res = await fetch("/v1/tools");
+    const data = await res.json();
+    $("tools").innerHTML = (data.tools || []).map(t =>
+      `<div class="item"><b>${esc(t.name)}</b> ${esc(t.description)}<br><code>${esc(JSON.stringify(t.parameters))}</code></div>`
+    ).join("");
+  } catch (err) { $("chatStatus").textContent = "失败：" + err; }
+}
+
+async function runEval() {
+  $("chatStatus").textContent = "评测中…";
+  try {
+    const res = await fetch("/v1/eval", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({})
+    });
+    const data = await res.json();
+    $("trace").textContent = (data.details || []).map(d =>
+      `${d.hit ? "✓" : "✗"} ${d.query} · tools=${d.actual_tools.join(",")} · steps=${d.steps} · ${d.latency_ms}ms`
+    ).join("\n");
+    $("chatStatus").textContent =
+      `评测完成：命中率 ${(data.hit_rate * 100).toFixed(1)}% · 工具命中率 ${(data.tool_hit_rate * 100).toFixed(1)}% · ` +
+      `平均步数 ${data.avg_steps} · 平均延迟 ${data.avg_latency_ms}ms · 样例 ${data.samples}`;
+  } catch (err) { $("chatStatus").textContent = "失败：" + err; }
+}
+
+$("query").value = "请检索多模态平台的混合检索说明，并计算 12*8 的结果";
+refreshHealth();
+</script>
+</body>
+</html>

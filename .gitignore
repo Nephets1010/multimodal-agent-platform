@@ -1,0 +1,27 @@
+# 本地配置（可能含真实凭据）
+.env
+
+# 运行期产物：忽略 data/ 下所有生成物，但保留两个目录占位文件
+data/
+!data/
+data/*
+!data/.gitkeep
+!data/tmp/
+data/tmp/*
+!data/tmp/.gitkeep
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+
+# 测试与构建产物
+.pytest_cache/
+*.egg-info/
+.venv/
+
+# 构建与工具缓存产物（开源化增量追加；上方既有条目零删减）
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+.coverage

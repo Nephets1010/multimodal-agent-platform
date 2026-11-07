@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "多模态通用智能体开发平台"
+type: software
+version: 1.0.0
+date-released: "__RELEASE_DATE__"
+abstract: >-
+  四模态统一接入 → 统一表征与多模态 RAG → Planner/Worker/Reflector 智能体编排
+  → 工具调用 → SSE 流式统一应答 → 轨迹回放与自动评测的可运行教学／作品集项目。
+  DEMO_MODE=1 下零 API Key、零 GPU、零联网即可复现全链路；
+  DEMO stub 语义质量不等价于真实多模态大模型，评测指标不代表业务准确率。
+keywords:
+  - multimodal
+  - retrieval-augmented-generation
+  - agent
+  - fastapi
+  - server-sent-events
+  - demo
+authors:
+  - family-names: "__AUTHOR_NAME__"
+    email: "__AUTHOR_EMAIL__"
+url: "__REPO_URL__"
+repository-code: "__REPO_URL__"
+license: Apache-2.0
