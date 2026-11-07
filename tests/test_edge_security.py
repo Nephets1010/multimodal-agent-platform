@@ -27,10 +27,14 @@ from app.runtime import build_context
 from app.schemas import ConfigError
 
 FAKE_KEY = "sk-should-not-leak"
+# 期望值均为「行尾归一化（CRLF→LF）后」的内容哈希：git 索引存 LF，
+# Windows 工作区受 core.autocrlf 影响 checkout 成 CRLF，Linux runner 得到 LF。
+# 守护的是「内容级零改动」；平台行尾差异不算内容改动，真实内容被改仍会检出。
 _PROTECTED_SHA256 = {
     "requirements.txt": "e5cfccf8a56bef25938b6f8b4457c5e4b616b28cdf4741f5fe025cf25e281fca",
     "samples/knowledge.txt": "3f101b4d56354790d81aa64e5b8264c775601b1532dfe69b9dd5220ca80f5cd1",
-    "web/index.html": "46d5c74a8d207efc948702caf6b09fb552781551a6463b56d9cf4626ec8ae135",
+    "web/index.html": "8f333766540cd3bbd7abd44922bd5eb3892db2040f57751268d8d18bc7067edb",
+    "docs/reference/platform-spec-README.md": "6d197f59898b171ade4fba7d383c09429bb9e1a6f1c736643aaf073321aac081",
 }
 
 
@@ -497,12 +501,19 @@ class TestStaticSafety:
         assert offenders == []
 
     def test_protected_files_are_byte_identical(self):
+        """守护「内容级零改动」：先归一化 CRLF→LF 再哈希。
+
+        git 索引存 LF；Windows 工作区（core.autocrlf）checkout 成 CRLF，
+        Linux CI runner checkout 成 LF。行尾差异是平台行为、不是内容改动；
+        归一化后若有人真正改了文件任意一个字符，哈希仍会变化并被本断言捕获。
+        """
         import hashlib
 
         root = config.PROJECT_ROOT
         for name, expected in _PROTECTED_SHA256.items():
-            actual = hashlib.sha256((root / name).read_bytes()).hexdigest()
-            assert actual == expected, f"{name} 被改动：{actual}"
+            normalized = (root / name).read_bytes().replace(b"\r\n", b"\n")
+            actual = hashlib.sha256(normalized).hexdigest()
+            assert actual == expected, f"{name} 内容被改动：{actual}"
 
     def test_gitignore_covers_required_entries(self):
         content = (config.PROJECT_ROOT / ".gitignore").read_text(encoding="utf-8")
