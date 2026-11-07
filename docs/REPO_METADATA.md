@@ -82,13 +82,26 @@ __OWNER__ / __REPO_NAME__ := 由用户提供的 URL 解析，不得反推
 `__DEFAULT_BRANCH__` / `__CI_BADGE_URL__` / `__OWNER__` / `__REPO_NAME__`
 → 再替换 `__REPO_URL__` → 最后身份／日期符号 → `grep` 确认交付文件 0 残留。
 
+> **分支占位说明（QA 补充）**：派生路径中出现的 `main` **只是 `__DEFAULT_BRANCH__` 的默认取值**，
+> 不是硬编码分支。S2 必须与 `__DEFAULT_BRANCH__` 一并按用户给定的目标分支**全量替换**；
+> 替换后需额外 `grep -rnE 'blob/main|/tree/main|\.\.\.HEAD'` 确认无旧分支写法残留，
+> 否则 issues／PR／compare 链接会指向错误分支。
+
 ---
 
 ## 4. 冻结门与 S1–S7 交接
 
 1. **当前状态（地址未到位）**：交付占位符版，全仓允许 `__...__` 残留，**不得推送**。
 2. **S1**：用户提供真实 URL 或授权使用已有仓库（Q-OS2 明确**不新建仓库**），主理人确认 owner／repo／可见性。
-3. **S2**：按 §1／§2 一次性全量替换 12 个 RP 点；`grep -rn '__[A-Z_]*__' --exclude-dir=data --exclude-dir=__pycache__ .` → 交付文件 0 残留；12 处 URL 完全一致；无臆造 owner/repo；无散落硬编码。
+3. **S2**：按 §1／§2 一次性全量替换 12 个 RP 点。替换后执行下方命令（**排除 `docs/` 下设计文档的说明性文字，只查实际产物**；本登记表自身作为历史索引不列入），期望 **0 残留**；并核对 12 处 URL 完全一致、无臆造 owner/repo、无散落硬编码、无旧分支写法：
+
+   ```bash
+   grep -rnE '__[A-Z_]+__' --exclude-dir=data --exclude-dir=__pycache__ \
+     --exclude-dir=.pytest_cache --exclude='REPO_METADATA.md' \
+     README.md pyproject.toml CITATION.cff CONTRIBUTING.md CODE_OF_CONDUCT.md \
+     SECURITY.md CHANGELOG.md NOTICE LICENSE .github/workflows/ci.yml
+   # S2 后期望：无输出（0 残留）；另 grep -rnE 'blob/main|/tree/main|\.\.\.HEAD' 确认无旧分支写法
+   ```
 4. **S3**：本地最终验证（PRD-OPENSOURCE §3 十条判据 + ARCH-OPENSOURCE v1.1 §7 A–F）。
 5. **S4**：`git init` → remote（**只用用户地址**）→ 本地首次提交【**停在推送前**】；提交信息不含密钥。
 6. **S5**：用户授权后推送 → **S6** 设 public + description／homepage／topics／license → **S7** 反馈推送结果／仓库可见性／开源配置状态。
