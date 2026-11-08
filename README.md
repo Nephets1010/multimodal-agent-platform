@@ -267,3 +267,12 @@ HOST=127.0.0.1 PORT=8000 DEMO_MODE=1 python3 -m app.main
 ---
 
 > 目录结构、端点路径／字段、`web/index.html` / `requirements.txt` / `samples/knowledge.txt` 均按原始规格保持零改动。
+
+## 9. 文档索引 / Documentation
+
+| 文档 | 中文版 | English |
+| --- | --- | --- |
+| 系统架构设计 (Architecture) | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | [ARCHITECTURE-EN.md](docs/ARCHITECTURE-EN.md) |
+| 仓库元信息 (Repository metadata) | [REPO_METADATA.md](docs/REPO_METADATA.md) | [REPO_METADATA-EN.md](docs/REPO_METADATA-EN.md) |
+
+> 中文版为权威来源 / The Chinese versions are the authoritative source.
