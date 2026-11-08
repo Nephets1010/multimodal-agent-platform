@@ -113,13 +113,17 @@ DEMO_MODE=1 python3 -m app.observability.evaluator                      # = make
 | `retrieval.dense_weight` / `bm25_weight` / `dense_floor` / `snippet_chars` | `0.6` / `0.4` / `1e-9` / `160` | — | `MAP_RETRIEVAL__DENSE_WEIGHT` 等 |
 | `ingest.chunk_size` / `chunk_overlap` | `320` / `64` | `INGEST_CHUNK_SIZE` / `INGEST_CHUNK_OVERLAP` | `MAP_INGEST__CHUNK_SIZE` 等 |
 | `ingest.max_file_bytes` / `max_total_bytes` / `max_files` | `10 MiB` / `50 MiB` / `20` | `INGEST_MAX_FILE_BYTES` 等 | `MAP_INGEST__MAX_FILES` 等 |
-| `agent.max_steps` / `tool_timeout_seconds` / `max_query_chars` / `token_chunk_chars` / `human_in_loop` | `8` / `3.0` / `2000` / `24` / `false` | `AGENT_MAX_STEPS` / `AGENT_TOOL_TIMEOUT_SECONDS` / `HUMAN_IN_LOOP` | `MAP_AGENT__MAX_STEPS` 等 |
+| `agent.max_steps` / `tool_timeout_seconds` / `max_query_chars` / `token_chunk_chars` / `human_in_loop` / `tool_orphan_max` | `8` / `3.0` / `2000` / `24` / `false` / `8` | `AGENT_MAX_STEPS` / `AGENT_TOOL_TIMEOUT_SECONDS` / `HUMAN_IN_LOOP` | `MAP_AGENT__MAX_STEPS` 等 |
 | `observability.log_level` / `trace_path` / `eval_report_path` | `INFO` / `data/traces.jsonl` / `data/eval_report.json` | — | `MAP_OBSERVABILITY__LOG_LEVEL` 等 |
-| `eval.samples_path` / `default_samples` | `samples/eval.jsonl` / `8` | — | `MAP_EVAL__SAMPLES_PATH` 等 |
+| `eval.samples_path` / `default_samples` / `max_samples` | `samples/eval.jsonl` / `8` / `100` | — | `MAP_EVAL__SAMPLES_PATH` 等 |
 
 `.env.example` 只含占位符，**不含任何真实凭据**；复制为 `.env` 后可覆盖。所有路径基于 `app/config.py::PROJECT_ROOT`，不依赖当前工作目录；`data/` 与 `data/tmp/` 自动创建。
 
 **上传白名单与阈值**（`config/settings.yaml`）：`text: .txt/.md/.json/.csv/.text`；`image: .png/.jpg/.jpeg/.webp/.bmp`；`audio: .wav`；`video: .mp4/.avi/.mov/.mkv/.webm`（大小写不敏感）；单文件 ≤ 10 MiB、单次总 ≤ 50 MiB、≤ 20 文件；文件名经 `Path(name).name` + 正则净化，临时文件只写 `data/tmp/` 并在 `finally` 清理，绝不写用户指定路径。
+
+> ⚠️ **`ingest.allowed_extensions` 是上传准入的唯一判定源**：扩展名判定与「仅允许 ...」错误提示均实时读取当前配置，**改配置即改行为**（模态键仅允许 `text`/`image`/`audio`/`video`，跨模态扩展名冲突或空白名单在启动期抛 `ConfigError`）。默认取值与 v1.0 内置白名单逐字一致，默认行为零变化。
+
+**工具超时行为**：工具可在硬超时前协作式取消自行退出（不产生孤儿 worker）；连续硬超时积累的孤儿达到 `agent.tool_orphan_max`（默认 `8`）后，旧线程池换代隔离、新调用立即饱和拒绝。对外契约不变：`ToolResult` 恒 5 字段，超时文案 `tool timeout after {timeout}s` 逐字不变。
 
 ---
 
@@ -132,7 +136,7 @@ DEMO_MODE=1 python3 -m app.observability.evaluator                      # = make
 | POST | `/v1/chat` | `{query, session_id, stream, modalities}`；`stream=false` → `UnifiedResponse` 11 字段，`stream=true` → SSE |
 | GET | `/v1/trace/{trace_id}` | `{events:[{event,node,steps,status,...}], count}` |
 | GET | `/v1/tools` | `{tools:[{name,description,parameters}], whitelist, max_steps, tool_timeout_seconds}` |
-| POST | `/v1/eval` | 可选 `{"samples":[...]}`（数组）；响应 6 字段，其中 `samples` 是**数量数字** |
+| POST | `/v1/eval` | 可选 `{"samples":[...]}`（数组）；显式样本数超过 `eval.max_samples`（默认 100）返回 400，`{}` / 缺省走内置 8 样本路径；响应 6 字段，其中 `samples` 是**数量数字** |
 | GET | `/`、`/ui/index.html` | 同源托管 `web/index.html` |
 | GET | `/docs` | FastAPI 自动文档（默认开启） |
 

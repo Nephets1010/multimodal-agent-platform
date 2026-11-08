@@ -102,6 +102,7 @@ class AgentCfg(_Cfg):
     max_query_chars: int = 2000
     token_chunk_chars: int = 24
     human_in_loop: bool = False
+    tool_orphan_max: int = 8
 
 
 class ObservabilityCfg(_Cfg):
@@ -115,6 +116,7 @@ class ObservabilityCfg(_Cfg):
 class EvalCfg(_Cfg):
     samples_path: str = "samples/eval.jsonl"
     default_samples: int = 8
+    max_samples: int = 100
 
 
 class Settings(_Cfg):
@@ -271,13 +273,17 @@ def _coerce(raw: str, default: Any, path: str) -> Any:
         ) from exc
 
 
+#: 合法模态键集合（与四模态处理器的 ``modality`` 属性同源；配置侧防线）。
+_VALID_MODALITIES: frozenset[str] = frozenset({"text", "image", "audio", "video"})
+
+
 # --------------------------------------------------------------------------- #
 # 启动期校验
 # --------------------------------------------------------------------------- #
 
 
 def _validate_settings(settings: Settings) -> None:
-    """校验版本、枚举取值域、正数、overlap<size、白名单扩展名以 ``.`` 开头。"""
+    """校验版本、枚举取值域、正数、overlap<size、白名单扩展名同源与 ``.`` 开头。"""
     if settings.config_version != 1:
         raise ConfigError(f"config_version 必须为 1，当前为 {settings.config_version}")
     if settings.llm.backend not in ("api", "template"):
@@ -315,7 +321,9 @@ def _validate_settings(settings: Settings) -> None:
         ("agent.tool_timeout_seconds", settings.agent.tool_timeout_seconds),
         ("agent.max_query_chars", settings.agent.max_query_chars),
         ("agent.token_chunk_chars", settings.agent.token_chunk_chars),
+        ("agent.tool_orphan_max", settings.agent.tool_orphan_max),
         ("eval.default_samples", settings.eval.default_samples),
+        ("eval.max_samples", settings.eval.max_samples),
     ]
     for name, value in positive:
         if value <= 0:
@@ -327,12 +335,41 @@ def _validate_settings(settings: Settings) -> None:
             f"{settings.ingest.chunk_overlap} >= {settings.ingest.chunk_size}）"
         )
 
+    # 白名单扩展名校验（TD-16 同源化的配置侧防线；本模块不得 import app.modalities）
+    allowed_map: dict[str, set[str]] = {}
     for modality, exts in settings.ingest.allowed_extensions.items():
+        if modality not in _VALID_MODALITIES:
+            raise ConfigError(
+                f"ingest.allowed_extensions 模态键 {modality!r} 非法，"
+                f"仅允许 {', '.join(sorted(_VALID_MODALITIES))}"
+            )
+        owned: set[str] = set()
         for ext in exts:
             if not str(ext).startswith("."):
                 raise ConfigError(
                     f"ingest.allowed_extensions.{modality} 的扩展名 {ext!r} 必须以 '.' 开头"
                 )
+            normalized = str(ext).lower()
+            if normalized in allowed_map and normalized not in owned:
+                raise ConfigError(
+                    f"ingest.allowed_extensions 扩展名 {normalized} 在多个模态组冲突："
+                    f"{allowed_map[normalized]} 与 {modality}"
+                )
+            owned.add(normalized)
+        if owned:
+            for normalized in owned:
+                # 同组内允许重复声明（去重）；跨组冲突已在上面拒绝。
+                allowed_map.setdefault(normalized, {modality}).add(modality)
+
+    flattened = {
+        str(ext).lower()
+        for exts in settings.ingest.allowed_extensions.values()
+        for ext in exts
+    }
+    if not flattened:
+        raise ConfigError(
+            "ingest.allowed_extensions 扁平化后为空：至少要为 1 个模态声明 1 个扩展名"
+        )
 
 
 # --------------------------------------------------------------------------- #

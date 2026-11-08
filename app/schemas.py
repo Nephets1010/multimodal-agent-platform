@@ -354,6 +354,13 @@ class ModalityError(PlatformError):
     http_status = 400
 
 
+class EvalError(PlatformError):
+    """评测显式样本数超过 ``eval.max_samples`` 上限（TD-16 端点护栏）。"""
+
+    code = "eval_error"
+    http_status = 400
+
+
 class ToolError(PlatformError):
     """未注册工具／参数校验失败；转 ``ToolResult(ok=False)``，不抛到 HTTP 层。"""
 
@@ -409,5 +416,6 @@ __all__ = [
     "ModalityError",
     "ToolError",
     "ToolTimeoutError",
+    "EvalError",
     "IndexCorruptedError",
 ]

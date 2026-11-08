@@ -26,6 +26,10 @@
 `B-02 ≈ TD-10`（检索热点，合并）、`B-04 ≈ TD-21`（超时线程，合并）、
 `BF-02 ≈ TD-18`（SSE 兜底 done，合并）、`BF-01` 与 `TD-14` 为不同问题不合并。
 
+> **状态更新（后续轮次）**：原「需进一步确认」15 项中 3 项已经用户拍板实施并收口——
+> `TD-16`、`B-03（完整）`、`TD-21 / B-04`（详见 §3 对应行的 ✅ 标注）。
+> 现余「需进一步确认」12 项。
+
 ---
 
 ## 2. 已实施优化（可立即修复，本期落地）
@@ -97,12 +101,12 @@
 | TD-14 | HTTP 成功响应绕过脱敏：完整 prompt / 工具异常原文 / 内部路径进入 `answer`、`tool_results[].error`、SSE `step` | 高 | P0 | 改 `answer` 会破坏模板四段式与 `eval.jsonl` 命中口径（`hit_rate` 现 1.0） | 与 SECURITY.md「完整 prompt 不得进 API 响应」口径冲突 | 需确认是否允许改 `UnifiedResponse.answer` 内容、`hit_rate` 变化；可先做低风险子集（清洗 `error`/`last_observation`，不动 answer） |
 | B-01 / TD-15 | `async def` 端点内同步执行 `graph.run` / `evaluator.evaluate`，阻塞 event loop（实测 5ms 心跳静默 316ms） | 中 | P1 | 改 `run_in_threadpool` 改变并发模型，且会放大 A-01 类竞争；与「无并发写入锁」披露边界相邻 | 单请求期间同 worker 其他请求停摆 | 需确认目标并发模型 / 是否允许多 worker；若维持单机串行演示，则 README 补一句说明 |
 | B-02 / TD-10 | 每次检索重算文档范数与 BM25/重排（N=1000 时单次 86ms，79% 耗在重复 norm） | 中 | P1 | 缓存涉及 `_chunks`/`_vectors` 结构与索引变更失效；`version:1` 格式是否演进需决策 | 万级切片时单次提问约 0.9s | 需确认是否允许演进 `vector_index.json` 格式、万级是否真实目标负载；可先做纯算法项（`heapq.nlargest`） |
-| B-03（完整） | `settings.yaml` 的 `allowed_extensions` 不参与上传准入判定，配置形同死键 | 中 | P1 | 配置化属上传准入行为变更，需同步 2 文件 + MIME 兜底 | 改配置不改行为 | 本期已做局部修法（错误提示同源）；需确认 Q3 是否要求运行时可调整 |
-| TD-16 | `/v1/eval` 请求 `samples` 无数量上限（n=200 实测 5.8s） | 中 | P1 | 加上限会拒绝当前被接受的请求，默认值属产品决策 | 单请求可长时间占用 worker | 需确认上限值 / 是否要分页或异步任务 |
+| B-03（完整） | `settings.yaml` 的 `allowed_extensions` 不参与上传准入判定，配置形同死键 | 中 | P1 | ~~配置化属上传准入行为变更，需同步 2 文件 + MIME 兜底~~ | 改配置不改行为 | **✅ 已收口**：`build_modality_map(settings)` 成为唯一判定源，默认 16 扩展名与原常量逐字一致（零漂移），启动校验加固（模态键/冲突/空白名单 → ConfigError）；遗留：MIME 兜底仍为内部常量（次级安全网，PRD 决策不配置化） |
+| TD-16 | `/v1/eval` 请求 `samples` 无数量上限（n=200 实测 5.8s） | 中 | P1 | ~~加上限会拒绝当前被接受的请求，默认值属产品决策~~ | 单请求可长时间占用 worker | **✅ 已收口**：新增 `eval.max_samples`（默认 100，env `MAP_EVAL__MAX_SAMPLES` 可覆盖），超限 HTTP 400 + 可读 detail（含当前数与上限）；`{}`/None 内置路径不受影响 |
 | TD-17 | 上传「先整体 `read()` 再校验大小」，11MiB 文件已全量进内存 | 中 | P1 | 需改 `UploadFile.read()` 用法并确认 Starlette `max_part_size`/SpooledTemporaryFile 行为 | 多文件/大文件内存放大 | 需确认是否允许应用层流式读取、单块大小 |
 | TD-19（增量写部分） | 每次 ingest 全量重写索引 JSON（1000 chunks / 2.07MB / 44ms） | 中 | P1 | 增量写会改持久化格式或写入策略 | ingest 延迟随 N 线性 | 本期已完成**原子写**；增量写需确认索引文件是否外部可读产物 |
 | TD-20 | 上传 `text` 字段无应用层上限；MIME 与扩展名未做一致性双校验 | 低 | P2 | 两者都改变请求接受范围，且需新增配置键 | 放大与模态判定可解释性 | 需确认 text 上限目标值、MIME 不一致是拒绝还是仅告警 |
-| TD-21 / B-04 | 工具超时后运行中线程无法取消，`max_workers=4` 可被连锁占满 | 中 | P1 | Python 无法强杀线程，彻底修复需进程池或协作式取消点 | 生产模式慢工具连续超时后整体可用性 | 需确认是否仅治理生产模式、是否允许进程池 |
+| TD-21 / B-04 | 工具超时后运行中线程无法取消，`max_workers=4` 可被连锁占满 | 中 | P1 | ~~Python 无法强杀线程，彻底修复需进程池或协作式取消点~~ | 生产模式慢工具连续超时后整体可用性 | **✅ 已收口**：ContextVar deadline 协作式取消（`check_tool_deadline()` 导出供长任务接入）+ 硬超时池换代隔离（`tool_pool_rotated`）+ 孤儿上限 `agent.tool_orphan_max`（默认 8，超限饱和拒绝 `tool_orphan_capped`）；`ToolResult` 5 字段与超时文案不变；未引入进程池（`KnowledgeSearchTool` 不可 pickle） |
 | B-05 | `AgentTracer.emit()` 每条轨迹 open/write/close 同步 IO 在关键路径 | 低 | P2 | 改常驻句柄需重定义 `close()`、flush 与多进程 append 安全 | 随轨迹数量线性增长 | 当前「不持有句柄」反而利于异常恢复；需确认是否要求异步化（会引入丢失风险） |
 | QA-T18 | CI 五步不校验评测指标语义、Makefile 四目标、Windows CRLF 反护 | 中 | P1 | 需改 `ci.yml` / `Makefile`（非测试文件），超出本轮授权 | 三类退化仍靠人工发现 | 需确认是否允许扩 CI 面、是否接受时长增加 |
 | QA-T19 | 并发/无锁条件下不应新增并发断言 | 低 | P2 | 无锁是已披露设计决策，加断言会固化未定义行为且 flaky | 若未来加锁需重新定义契约 | 需确认是否把「无锁」升级为「加锁」 |

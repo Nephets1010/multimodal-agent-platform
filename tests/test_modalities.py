@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import pytest
 
+from app.config import _VALID_MODALITIES
 from app.modalities import PROCESSORS, detect_modality
+from app.modalities.base import MODALITY_BY_EXT, build_modality_map
 from app.modalities.image import ImageProcessor
 from app.modalities.text import TextProcessor
 from app.modalities.video import VideoProcessor
@@ -97,3 +99,20 @@ def test_text_chunk_size_and_overlap(settings):
     assert len(chunks) >= 2
     assert all(len(chunk.content) <= settings.ingest.chunk_size for chunk in chunks)
     assert [c.metadata["chunk_index"] for c in chunks] == list(range(len(chunks)))
+
+
+# --------------------------------------------------------------------------- #
+# TD-16 · B1 白名单同源化零漂移断言
+# --------------------------------------------------------------------------- #
+
+
+def test_build_modality_map_matches_reference_constant(settings):
+    """默认配置下 ``build_modality_map(settings)`` 与 ``MODALITY_BY_EXT`` 逐字相等。"""
+    assert build_modality_map(settings) == MODALITY_BY_EXT
+
+
+def test_valid_modalities_match_processor_modality_attributes():
+    """``_VALID_MODALITIES`` 与四处理器 ``modality`` 属性集合相等。"""
+    assert set(_VALID_MODALITIES) == {
+        processor.modality for processor in PROCESSORS.values()
+    }

@@ -19,6 +19,8 @@ if TYPE_CHECKING:  # 仅类型标注，运行时不产生额外依赖
     from app.config import Settings
 
 #: Q3 扩展名白名单（逐字一致，大小写不敏感）。
+#: **只读参考常量，运行时禁止读取**：白名单真实来源是 ``settings.ingest.allowed_extensions``
+#: （经 :func:`build_modality_map` 构建该映射）。保留本常量仅供测试做零漂移断言。
 MODALITY_BY_EXT: dict[str, str] = {
     ".txt": "text",
     ".md": "text",
@@ -104,18 +106,33 @@ def build_chunk(
     )
 
 
+def build_modality_map(settings: "Settings") -> dict[str, str]:
+    """把 ``settings.ingest.allowed_extensions`` 扁平化为 ``{扩展名: 模态}`` 运行期映射。
+
+    扩展名统一小写；这是白名单的**唯一运行时来源**，``detect_modality`` 与
+    ``api.guards.validate_uploads`` 都读它，保证判定与提示同源。
+    """
+    return {
+        ext.lower(): modality
+        for modality, exts in settings.ingest.allowed_extensions.items()
+        for ext in exts
+    }
+
+
 def detect_modality(name: str, mime: str, settings: "Settings") -> str:
     """扩展名优先、MIME 兜底；未知扩展名抛 ``IngestError``（400 + 可读 detail）。"""
     ext = Path(name).suffix.lower()
-    if ext in MODALITY_BY_EXT:
-        return MODALITY_BY_EXT[ext]
+    ext_map = build_modality_map(settings)
+    if ext in ext_map:
+        return ext_map[ext]
 
     normalized_mime = (mime or "").split(";")[0].strip().lower()
     if normalized_mime in _MIME_TO_MODALITY:
         return _MIME_TO_MODALITY[normalized_mime]
 
-    # 错误提示与实际判定同源：统一用 MODALITY_BY_EXT，避免配置漂移时提示撒谎。
-    allowed = ", ".join(sorted(MODALITY_BY_EXT))
+    # 错误提示与实际判定同源：统一用 build_modality_map(settings)，
+    # 避免配置漂移时提示撒谎。
+    allowed = ", ".join(sorted(ext_map))
     raise IngestError(
         f"不支持的扩展名 {ext or '(无扩展名)'}，仅允许 {allowed}",
         code="unsupported_extension",
@@ -141,6 +158,7 @@ __all__ = [
     "MODALITY_BY_EXT",
     "RawInput",
     "BaseModalityProcessor",
+    "build_modality_map",
     "detect_modality",
     "make_source_id",
     "make_chunk_id",

@@ -68,6 +68,35 @@ def edge_client(edge_ctx):
             del app.state.ctx
 
 
+@pytest.fixture
+def eval_cap_ctx(monkeypatch: pytest.MonkeyPatch):
+    """TD-16 · A2 专用：``MAP_EVAL__MAX_SAMPLES=10`` 下装配独立组合根。"""
+    monkeypatch.setenv("DEMO_MODE", "1")
+    monkeypatch.setenv("MAP_EVAL__MAX_SAMPLES", "10")
+    config.reset_settings_cache()
+    context = build_context()
+    try:
+        yield context
+    finally:
+        context.tools.shutdown()
+        context.tracer.close()
+        config.reset_settings_cache()
+
+
+@pytest.fixture
+def eval_cap_client(eval_cap_ctx):
+    from app.main import app
+
+    app.state.ctx = eval_cap_ctx
+    test_client = TestClient(app)
+    try:
+        yield test_client
+    finally:
+        test_client.close()
+        if getattr(app.state, "ctx", None) is eval_cap_ctx:
+            del app.state.ctx
+
+
 # --------------------------------------------------------------------------- #
 # 输入边界
 # --------------------------------------------------------------------------- #
@@ -393,3 +422,58 @@ class TestIdempotency:
         assert first["hit_rate"] == second["hit_rate"]
         assert first["tool_hit_rate"] == second["tool_hit_rate"]
         assert first["avg_steps"] == second["avg_steps"]
+
+
+# --------------------------------------------------------------------------- #
+# TD-16 · A1/A2/A3：/v1/eval 显式样本数护栏
+# --------------------------------------------------------------------------- #
+
+
+def _eval_payload(count: int) -> dict[str, Any]:
+    """构造 ``count`` 条显式样本；关键词留空以聚焦护栏行为而非命中判定。"""
+    return {
+        "samples": [
+            {"query": f"介绍一下平台 {index}", "expected_keywords": []}
+            for index in range(count)
+        ]
+    }
+
+
+class TestEvalSampleGuard:
+    def test_default_over_limit_returns_400_with_counts(self, edge_client, edge_ctx):
+        """A1：默认上限 100，101 样本 → 400 且 detail 同时含当前数与上限。"""
+        limit = int(edge_ctx.settings.eval.max_samples)
+        assert limit == 100
+        response = edge_client.post("/v1/eval", json=_eval_payload(limit + 1))
+        assert response.status_code == 400
+        body = response.json()
+        assert set(body) == {"detail"}
+        assert str(limit + 1) in body["detail"]
+        assert str(limit) in body["detail"]
+
+    def test_at_exact_limit_returns_200(self, edge_client):
+        """A1：恰好 100 样本 → 200，响应 samples 为数量数字。"""
+        response = edge_client.post("/v1/eval", json=_eval_payload(100))
+        assert response.status_code == 200
+        body = response.json()
+        assert body["samples"] == 100
+        assert len(body["details"]) == 100
+
+    def test_env_override_lower_limit(self, eval_cap_client):
+        """A2：``MAP_EVAL__MAX_SAMPLES=10`` 下 11 样本 → 400、10 样本 → 200。"""
+        response = eval_cap_client.post("/v1/eval", json=_eval_payload(11))
+        assert response.status_code == 400
+        body = response.json()
+        assert "11" in body["detail"] and "10" in body["detail"]
+
+        ok = eval_cap_client.post("/v1/eval", json=_eval_payload(10))
+        assert ok.status_code == 200
+        assert ok.json()["samples"] == 10
+
+    def test_empty_body_uses_builtin_samples(self, edge_client):
+        """A3：``POST /v1/eval {}`` → 200 且内置 8 样本 hit_rate=1.0 不回归。"""
+        response = edge_client.post("/v1/eval", json={})
+        assert response.status_code == 200
+        body = response.json()
+        assert body["samples"] == 8
+        assert body["hit_rate"] == 1.0

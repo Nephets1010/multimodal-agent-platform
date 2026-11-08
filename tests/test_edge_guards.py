@@ -192,3 +192,46 @@ def test_detect_modality_unknown_mime_raises(settings):
     with pytest.raises(IngestError) as raised:
         detect_modality("blob.unknown", "application/octet-stream", settings)
     assert "不支持的扩展名" in raised.value.detail
+
+
+# --------------------------------------------------------------------------- #
+# TD-16 · B2/B4：白名单随配置同源变化，拒绝文案与当前配置一致
+# --------------------------------------------------------------------------- #
+
+
+def test_whitelist_follows_config_changes(settings, monkeypatch):
+    """B2：删 .txt / 加 .yaml 后，detect_modality 与 validate_uploads 同步变化。"""
+    monkeypatch.setattr(
+        settings.ingest,
+        "allowed_extensions",
+        {"text": [".md", ".yaml"], "image": [".png"]},
+    )
+
+    # 新白名单内的扩展名按配置判定
+    assert detect_modality("a.yaml", "", settings) == "text"
+    assert detect_modality("b.md", "", settings) == "text"
+    assert detect_modality("c.png", "", settings) == "image"
+
+    # 被删除的 .txt 不再放行（MIME 兜底也必须兜不住：mime 留空绕过 MIME 路径）
+    with pytest.raises(IngestError) as raised:
+        detect_modality("a.txt", "", settings)
+    assert raised.value.http_status == 400
+    assert raised.value.code == "unsupported_extension"
+    assert "仅允许 .md, .png, .yaml" in raised.value.detail
+
+    # validate_uploads 与 detect_modality 同源：.txt 拒绝、.yaml 放行
+    with pytest.raises(IngestError) as raised:
+        _run([_FakeUpload("a.txt", b"x")], settings)
+    assert "不支持的扩展名 .txt" in raised.value.detail
+    assert _run([_FakeUpload("a.yaml", b"x")], settings)
+
+
+def test_rejection_message_uses_current_config(settings, monkeypatch):
+    """B4：自定义白名单下，错误文案「仅允许 ...」与当前配置一致，不引用旧常量。"""
+    monkeypatch.setattr(settings.ingest, "allowed_extensions", {"text": [".txt"]})
+    with pytest.raises(IngestError) as raised:
+        _run([_FakeUpload("b.png", b"x")], settings)
+    detail = raised.value.detail
+    assert "仅允许 .txt" in detail
+    assert ", " not in detail  # 只有 1 个扩展名，文案不应出现任何旧白名单项
+    assert ".md" not in detail and ".wav" not in detail and ".mp4" not in detail

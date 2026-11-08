@@ -6,8 +6,19 @@
 
 ## [Unreleased]
 
-暂无。v1.0.0 已完成 S2 占位符全量替换并发布；仓库地址与身份取值见
-`docs/REPO_METADATA.md` 的 S2 执行记录。
+### 新增
+
+- 评测样本护栏：新配置键 `eval.max_samples`（默认 `100`）。`POST /v1/eval` 显式 `samples` 超过上限时返回 `400`（`detail` 同时含当前样本数与上限）；`{}` / 缺省仍走内置 8 样本路径，行为不变。
+- 工具执行护栏：新配置键 `agent.tool_orphan_max`（默认 `8`），超时孤儿 worker 硬上限。工具可在硬超时前协作式取消自行退出（不产生孤儿）；连续硬超时达到上限后线程池换代隔离、新调用立即饱和拒绝。对外契约零变化：`ToolResult` 恒 5 字段、超时文案 `tool timeout after {timeout}s` 逐字不变。
+
+### 变更
+
+- 上传白名单同源化：`ingest.allowed_extensions` 成为扩展名判定与「仅允许 ...」错误提示的**唯一运行时来源**，改配置即改行为（模态键仅允许 `text`/`image`/`audio`/`video`，跨模态扩展名冲突或空白名单在启动期抛 `ConfigError`）。默认取值与 v1.0 内置白名单逐字一致，默认行为零变化。
+- `README.md` §4/§5 同步披露上述新配置键、`/v1/eval` 样本上限与工具超时行为。
+
+### 基线
+
+- `DEMO_MODE=1 python -m pytest -q tests` = **274 passed**（247 基线 + 27 新增：评测护栏 / 白名单同源化 / 配置校验 / 工具超时与孤儿上限 / 线程池换代），`python -m compileall -q app scripts tests` 退出码 0。
 
 ## [1.0.0] - 2026-11-07
 

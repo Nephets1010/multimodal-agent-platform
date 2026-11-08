@@ -11,14 +11,61 @@ import re
 import time
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from app.observability.logging import get_logger
 from app.schemas import ToolDescriptor, ToolResult
 
 if TYPE_CHECKING:
     from app.config import Settings
     from app.rag.retriever import HybridRetriever
+
+#: ``ToolRegistry`` 专用 logger；事件名走 ``extra={"event": ...}``，与平台风格一致。
+logger = get_logger("agent.tools")
+
+# --------------------------------------------------------------------------- #
+# TD-21：工具执行 deadline（ContextVar）+ 协作式取消
+# --------------------------------------------------------------------------- #
+
+#: 当前线程池任务的执行 deadline（``time.monotonic()`` 时间轴）；未设为 ``None``。
+#: 每次 ``_run_with_deadline`` 开始都重设，线程复用无脏值。
+_TOOL_DEADLINE: ContextVar[float | None] = ContextVar("tool_deadline", default=None)
+
+
+class ToolCancelled(Exception):
+    """任务发现自身已越过 deadline 时由 ``check_tool_deadline`` 抛出的内部信号。"""
+
+
+#: ``_run_with_deadline`` 的取消哨兵：worker 返回它而非抛异常，避免污染 future 状态。
+_CANCELLED = object()
+
+
+def check_tool_deadline() -> None:
+    """协作取消入口：deadline 已过抛 ``ToolCancelled``；未设（``None``）时 no-op。
+
+    供长任务工具在循环间隙主动调用，使其在协作语义下自行退出，
+    不占住线程池 worker（无孤儿）。
+    """
+    deadline = _TOOL_DEADLINE.get()
+    if deadline is not None and time.monotonic() > deadline:
+        raise ToolCancelled("tool deadline exceeded")
+
+
+def _run_with_deadline(tool: BaseTool, kwargs: dict[str, Any], timeout: float) -> Any:
+    """线程池任务入口：设置 deadline → 预检 → 执行 → 取消转哨兵。
+
+    预检保证「排队期间已过期」的任务不执行；预检与执行阶段抛出的
+    ``ToolCancelled`` 统一捕获并返回 :data:`_CANCELLED`，
+    由 ``invoke`` 转既有超时文案（worker 自行退出，无泄漏）。
+    """
+    _TOOL_DEADLINE.set(time.monotonic() + timeout)
+    try:
+        check_tool_deadline()  # 排队期间已过期的任务不执行
+        return tool.run(**kwargs)
+    except ToolCancelled:
+        return _CANCELLED
 
 # --------------------------------------------------------------------------- #
 # 受限 AST 计算器（禁止 eval / exec）
@@ -250,6 +297,11 @@ class ToolRegistry:
     def __init__(self, retriever: "HybridRetriever", settings: "Settings") -> None:
         self._settings = settings
         self._timeout = float(settings.agent.tool_timeout_seconds)
+        self._orphan_max = int(settings.agent.tool_orphan_max)
+        #: 连续硬超时积累的孤儿 worker 数（worker 被旧代线程池隔离后仍在运行）。
+        self._orphans = 0
+        #: 被 ``_rotate_pool`` 换代下来的旧线程池（孤儿 worker 继续在其中运行）。
+        self._retired: list[ThreadPoolExecutor] = []
         self._pool = ThreadPoolExecutor(max_workers=4)
         self._tools: dict[str, BaseTool] = {}
         for tool in build_default_tools(retriever, settings):
@@ -272,7 +324,11 @@ class ToolRegistry:
         ]
 
     def invoke(self, name: str, arguments: dict[str, Any]) -> ToolResult:
-        """白名单 → 自写校验 → 线程池超时 → 结构化结果（链路永不中断）。"""
+        """白名单 → 自写校验 → 线程池超时 → 结构化结果（链路永不中断）。
+
+        TD-21：硬超时（``future.result`` 抛 ``FuturesTimeout``）积累孤儿并换代线程池；
+        协作取消（worker 返回 ``_CANCELLED``）复用既有超时文案且不产生孤儿。
+        """
         started = time.perf_counter()
         tool = self._tools.get(str(name))
         if tool is None:
@@ -294,9 +350,34 @@ class ToolRegistry:
                 error=f"参数校验失败：{problem}",
             )
 
+        if self._orphans >= self._orphan_max:
+            logger.warning(
+                "tool pool saturated: %d orphaned workers (max %d)，拒绝新工具调用",
+                self._orphans,
+                self._orphan_max,
+                extra={"event": "tool_orphan_capped", "orphans": self._orphans},
+            )
+            return ToolResult(
+                name=str(name),
+                ok=False,
+                elapsed_ms=(time.perf_counter() - started) * 1000.0,
+                output=None,
+                error=f"tool pool saturated: {self._orphans} orphaned workers "
+                f"(max {self._orphan_max})",
+            )
+
         try:
-            future = self._pool.submit(tool.run, **arguments)
+            future = self._pool.submit(_run_with_deadline, tool, dict(arguments), self._timeout)
             output = future.result(timeout=self._timeout)
+            if output is _CANCELLED:
+                # 协作取消：worker 自行退出，无泄漏 → 不计孤儿、不换代。
+                return ToolResult(
+                    name=str(name),
+                    ok=False,
+                    elapsed_ms=(time.perf_counter() - started) * 1000.0,
+                    output=None,
+                    error=f"tool timeout after {self._timeout}s",
+                )
             return ToolResult(
                 name=str(name),
                 ok=True,
@@ -305,6 +386,9 @@ class ToolRegistry:
                 error=None,
             )
         except FuturesTimeout:
+            # 硬超时：worker 仍在运行（孤儿）→ 计数 + 换代隔离。
+            self._orphans += 1
+            self._rotate_pool()
             return ToolResult(
                 name=str(name),
                 ok=False,
@@ -321,7 +405,26 @@ class ToolRegistry:
                 error=f"{type(exc).__name__}: {exc}",
             )
 
+    def _rotate_pool(self) -> None:
+        """换代线程池：旧池隔离继续跑孤儿 worker，新池立即接受新任务。
+
+        ``shutdown(wait=False, cancel_futures=True)`` 只取消未开始的任务，
+        运行中的孤儿继续跑但被隔离在旧池里，不影响新池的服务能力。
+        """
+        self._retired.append(self._pool)
+        self._pool.shutdown(wait=False, cancel_futures=True)
+        self._pool = ThreadPoolExecutor(max_workers=4)
+        logger.warning(
+            "tool pool rotated after hard timeout; orphans=%d (max %d)",
+            self._orphans,
+            self._orphan_max,
+            extra={"event": "tool_pool_rotated", "orphans": self._orphans},
+        )
+
     def shutdown(self) -> None:
+        for pool in self._retired:
+            pool.shutdown(wait=False, cancel_futures=True)
+        self._retired.clear()
         self._pool.shutdown(wait=False, cancel_futures=True)
 
 
@@ -333,6 +436,7 @@ __all__ = [
     "TextStatsTool",
     "ToolRegistry",
     "build_default_tools",
+    "check_tool_deadline",
     "safe_calculate",
     "validate_arguments",
 ]

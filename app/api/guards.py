@@ -1,6 +1,7 @@
 """上传安全护栏（Q3 / NF-6）：文件名净化、白名单、大小与数量上限、临时文件隔离。
 
-* 扩展名白名单来自 ``modalities.base.MODALITY_BY_EXT``（大小写不敏感）。
+* 扩展名白名单来自 ``settings.ingest.allowed_extensions``（经
+  ``modalities.base.build_modality_map`` 构建运行期映射，大小写不敏感）。
 * 单文件 10 MiB / 单次总 50 MiB / 最多 20 文件，用 ``await f.read()`` 实际字节数。
 * 临时文件只写 ``data/tmp/``，名字 ``uuid4().hex + "_" + safe_name``，
   **绝不写用户指定路径**，由 routes 在 ``finally`` 中清理。
@@ -15,7 +16,7 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 
-from app.modalities.base import MODALITY_BY_EXT
+from app.modalities.base import build_modality_map
 from app.observability.logging import get_logger
 from app.schemas import IngestError
 
@@ -48,11 +49,12 @@ async def validate_uploads(
 
     validated: list[tuple[str, bytes, str]] = []
     total_bytes = 0
+    ext_map = build_modality_map(settings)
     for upload in file_list:
         safe_name = sanitize_filename(upload.filename or "")
         extension = Path(safe_name).suffix.lower()
-        if extension not in MODALITY_BY_EXT:
-            allowed = ", ".join(sorted(MODALITY_BY_EXT))
+        if extension not in ext_map:
+            allowed = ", ".join(sorted(ext_map))
             raise IngestError(f"不支持的扩展名 {extension or '(无)'}，仅允许 {allowed}")
 
         data = await upload.read()

@@ -22,6 +22,7 @@ from app.modalities import PROCESSORS, detect_modality
 from app.observability.logging import get_logger
 from app.schemas import (
     ChatRequest,
+    EvalError,
     EvalRequest,
     HealthComponents,
     HealthResponse,
@@ -350,6 +351,12 @@ async def tools(request: Request) -> dict[str, Any]:
 async def evaluate(request: Request, payload: EvalRequest | None = None) -> dict[str, Any]:
     ctx = _ctx(request)
     override = payload.samples if payload is not None else None
+    # TD-16：显式样本数超过 eval.max_samples 时 400；{} / None 走内置 default_samples 路径。
+    if override is not None and len(override) > ctx.settings.eval.max_samples:
+        raise EvalError(
+            f"评测样本数 {len(override)} 超过上限 {ctx.settings.eval.max_samples}，"
+            "请减少 samples 或分批评测"
+        )
     return ctx.evaluator.evaluate(override).model_dump(mode="json")
 
 

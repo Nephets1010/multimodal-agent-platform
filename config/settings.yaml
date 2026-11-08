@@ -61,6 +61,7 @@ agent:
   max_query_chars: 2000
   token_chunk_chars: 24                 # SSE token 定长切片
   human_in_loop: false                  # HUMAN_IN_LOOP=1
+  tool_orphan_max: 8                    # 孤儿 worker 硬上限（TD-21）：连续硬超时达到该值后线程池饱和、拒绝新任务
 
 observability:
   trace_path: "data/traces.jsonl"
@@ -72,3 +73,4 @@ observability:
 eval:
   samples_path: "samples/eval.jsonl"
   default_samples: 8
+  max_samples: 100                      # /v1/eval 显式样本上限（TD-16）：请求携带的 samples 超过该值返回 400

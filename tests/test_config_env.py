@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -241,3 +242,77 @@ def test_load_dotenv_simple_line_forms(tmp_path: Path):
     assert "NO_EQUALS_SIGN" not in parsed
     assert "# comment line" not in str(parsed)
     assert config.load_dotenv_simple(tmp_path / "absent.env") == {}
+
+
+# --------------------------------------------------------------------------- #
+# TD-16 / TD-21：新配置键 env 覆盖 + 正数校验 + 白名单三分支校验
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    ("env_key", "env_value", "attr_getter"),
+    [
+        ("MAP_EVAL__MAX_SAMPLES", "50", lambda s: s.eval.max_samples),
+        ("MAP_AGENT__TOOL_ORPHAN_MAX", "4", lambda s: s.agent.tool_orphan_max),
+    ],
+)
+def test_new_numeric_keys_env_override(env_sandbox, monkeypatch, env_key, env_value, attr_getter):
+    """``MAP_EVAL__MAX_SAMPLES`` / ``MAP_AGENT__TOOL_ORPHAN_MAX`` 走通用兜底生效。"""
+    monkeypatch.setenv(env_key, env_value)
+    settings = _reload()
+    assert attr_getter(settings) == int(env_value)
+    config.reset_settings_cache()
+
+
+@pytest.mark.parametrize(
+    ("env_key", "env_value", "expected_in_detail"),
+    [
+        ("MAP_EVAL__MAX_SAMPLES", "0", "eval.max_samples"),
+        ("MAP_EVAL__MAX_SAMPLES", "-1", "eval.max_samples"),
+        ("MAP_EVAL__MAX_SAMPLES", "abc", "eval.max_samples"),
+        ("MAP_AGENT__TOOL_ORPHAN_MAX", "0", "agent.tool_orphan_max"),
+        ("MAP_AGENT__TOOL_ORPHAN_MAX", "-3", "agent.tool_orphan_max"),
+    ],
+)
+def test_new_numeric_keys_invalid_values_raise(
+    env_sandbox, monkeypatch, env_key, env_value, expected_in_detail
+):
+    """非法（非整数）/非正值 → ``ConfigError``，与既有正数键同风格。"""
+    monkeypatch.setenv(env_key, env_value)
+    with pytest.raises(ConfigError) as raised:
+        _reload()
+    assert expected_in_detail in str(raised.value)
+    config.reset_settings_cache()
+
+
+@pytest.mark.parametrize(
+    ("extensions", "expected_in_detail"),
+    [
+        ({"bogus": [".txt"]}, "bogus"),  # ① 模态键 ∉ _VALID_MODALITIES
+        ({"text": [".txt"], "image": [".txt"]}, ".txt"),  # ② 同一扩展名跨模态冲突
+        ({"text": []}, "为空"),  # ③ 扁平化后映射为空
+    ],
+)
+def test_allowed_extensions_invalid_config_branches(
+    env_sandbox, monkeypatch, extensions, expected_in_detail
+):
+    """TD-16 · B3：三条新增白名单校验各自抛可读 ``ConfigError``。"""
+    monkeypatch.setenv(
+        "MAP_INGEST__ALLOWED_EXTENSIONS", json.dumps(extensions, ensure_ascii=False)
+    )
+    with pytest.raises(ConfigError) as raised:
+        _reload()
+    message = str(raised.value)
+    assert expected_in_detail in message
+    assert "allowed_extensions" in message
+    config.reset_settings_cache()
+
+
+def test_allowed_extensions_same_modality_duplicate_is_allowed(env_sandbox, monkeypatch):
+    """同一模态组内重复声明同一扩展名不报错（去重语义）。"""
+    monkeypatch.setenv(
+        "MAP_INGEST__ALLOWED_EXTENSIONS", '{"text": [".txt", ".txt"], "audio": [".wav"]}'
+    )
+    settings = _reload()
+    assert settings.ingest.allowed_extensions == {"text": [".txt", ".txt"], "audio": [".wav"]}
+    config.reset_settings_cache()
