@@ -241,9 +241,36 @@ def test_eval_contract(client):
         "samples",
         "details",
     }
+    # QA-T06：原断言仅检查 0<=hit_rate<=1，NEG-6 把 hit_rate 恒置 0 后仍全绿。
+    # DEMO 为确定性 stub，8 条样例集指标必须逐项钉住。
     assert body["samples"] == 8
+    assert len(body["details"]) == 8
+    assert body["hit_rate"] == 1.0
+    assert body["tool_hit_rate"] == 1.0
+    assert body["avg_steps"] == 2.875
     assert all(isinstance(detail["actual_tools"], list) for detail in body["details"])
-    assert 0.0 <= body["hit_rate"] <= 1.0
+    assert all(detail["hit"] is True for detail in body["details"])
+
+
+def test_eval_negative_keyword_marks_hit_false(client):
+    """QA-T06：expected_keywords 未命中时 hit 必须为 False（负向判定路径）。"""
+    body = client.post(
+        "/v1/eval",
+        json={
+            "samples": [
+                {
+                    "query": "计算 12*8 的结果",
+                    "expected_keywords": ["不可能出现的字符串_QA_T06"],
+                    "expected_tools": ["calculator"],
+                    "expected_answer_contains": [],
+                }
+            ]
+        },
+    ).json()
+    assert body["samples"] == 1
+    assert body["details"][0]["hit"] is False
+    assert body["hit_rate"] == 0.0
+    assert body["details"][0]["actual_tools"] == ["calculator"]
 
 
 def test_eval_request_samples_is_array(client):

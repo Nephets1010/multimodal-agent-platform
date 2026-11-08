@@ -520,3 +520,53 @@ class TestStaticSafety:
         lines = [line.strip() for line in content.splitlines()]
         for entry in (".env", "data/", "__pycache__/", ".pytest_cache/"):
             assert any(line == entry or line.startswith(entry) for line in lines), entry
+
+
+# --------------------------------------------------------------------------- #
+# QA-T16：日志脱敏边界字符（真实凭据强度不得削弱）
+# --------------------------------------------------------------------------- #
+
+
+class TestRedactionBoundary:
+    @pytest.mark.parametrize(
+        "credential",
+        [
+            "Authorization: Bearer abc.def",
+            "Bearer\ttoken123",
+            "SK-THISISALONGSECRETKEY",
+            "sk-should-not-leak",
+            "token=abcdefghijk",
+            "password=hunter2secret",
+        ],
+    )
+    def test_real_credentials_are_still_masked(self, credential):
+        from app.observability.logging import redact_text
+
+        assert "***REDACTED***" in redact_text(credential)
+
+    def test_secret_with_regex_metacharacters_is_replaced_literally(self):
+        from app.observability.logging import redact_text
+
+        secret = "a.*+?b"
+        rendered = redact_text(f"value={secret}", {secret})
+        assert secret not in rendered
+        assert "***REDACTED***" in rendered
+
+    def test_short_secret_is_not_collected(self):
+        from app.observability.logging import redact_text
+
+        assert redact_text("abc", {"abc"}) == "abc"  # <4 字符不进替换集合
+
+    def test_long_message_is_truncated(self):
+        from app.observability.logging import redact_text
+
+        rendered = redact_text("x" * 600)
+        assert len(rendered) <= 524
+        assert rendered.endswith("…(truncated)")
+
+    def test_plain_words_are_not_swallowed(self):
+        """TD-07 词边界：含 ``sk-`` 子串的普通词必须原样返回。"""
+        from app.observability.logging import redact_text
+
+        for plain in ("task-list processed 10 items", "mask-value ok", "disk-space ok"):
+            assert redact_text(plain) == plain

@@ -18,10 +18,10 @@
 | `__CI_BADGE_URL__` | 地址·派生 | CI badge 图片 URL | `__REPO_URL__ + /actions/workflows/ci.yml/badge.svg` | RP-01 | grep 0 残留；与派生公式一致 |
 | `__DEFAULT_BRANCH__` | 地址·派生 | `blob` 路径分支段 | `main` | RP-04、11 | grep 0 残留；与仓库实际默认分支一致 |
 | `__AUTHOR_NAME__` | 身份·有默认值 | 作者／版权 holder | `Nephets1010`（gh 实测登录账号、目标仓库所有者） | RP-05、07、12 | 值与 gh 账号一致；不臆造真实姓名 |
-| `__AUTHOR_EMAIL__` | 身份·有默认值 | 作者／联系邮箱 | `Nephets1010@users.noreply.github.com`（GitHub 标准 noreply 格式） | RP-05、07、09、10 | 格式为 `<login>@users.noreply.github.com` |
+| `__AUTHOR_EMAIL__` | 身份·有默认值 | 作者／联系邮箱 | `Nephets1010@users.noreply.github.com`（默认取值；**已被用户确认值替换，实际取值见 §6**） | RP-05、07、09、10 | 与 §6 实际取值一致、用户已知悉公开可见 |
 | `__COPYRIGHT_YEAR__` | 身份·有默认值 | 版权年份 | `2026`（当前年份） | RP-12 | 值为当前年份 |
 | `__COPYRIGHT_HOLDER__` | 身份·有默认值 | 版权持有人 | `Nephets1010` | RP-12 | 与 `__AUTHOR_NAME__` 一致 |
-| `__SECURITY_CONTACT__` | 联系·有默认值 | 安全／行为准则举报渠道 | `Nephets1010@users.noreply.github.com`（用户可替换为私密报告入口） | RP-09、10 | grep 0 残留；非真实私人凭据 |
+| `__SECURITY_CONTACT__` | 联系·有默认值 | 安全／行为准则举报渠道 | `Nephets1010@users.noreply.github.com`（默认取值；**已被用户确认值替换，实际取值见 §6**） | RP-09、10 | 与 §6 实际取值一致、用户已知悉公开可见 |
 | `__RELEASE_DATE__` | 元信息·待用户提供 | CHANGELOG／CITATION 发布日期 | `<待用户提供；不得臆造月日>` | RP-11、CHANGELOG、CITATION | grep 0 残留；格式 `YYYY-MM-DD` |
 
 **两条区分铁律**（v1.1 §5.1）：
@@ -82,10 +82,9 @@ __OWNER__ / __REPO_NAME__ := 由用户提供的 URL 解析，不得反推
 `__DEFAULT_BRANCH__` / `__CI_BADGE_URL__` / `__OWNER__` / `__REPO_NAME__`
 → 再替换 `__REPO_URL__` → 最后身份／日期符号 → `grep` 确认交付文件 0 残留。
 
-> **分支占位说明（QA 补充）**：派生路径中出现的 `main` **只是 `__DEFAULT_BRANCH__` 的默认取值**，
-> 不是硬编码分支。S2 必须与 `__DEFAULT_BRANCH__` 一并按用户给定的目标分支**全量替换**；
-> 替换后需额外 `grep -rnE 'blob/main|/tree/main|\.\.\.HEAD'` 确认无旧分支写法残留，
-> 否则 issues／PR／compare 链接会指向错误分支。
+> **分支校验说明**：分支段须与 §6 实际取值 `main` 一致；`blob/main` 是合法最终值，
+> 仅当用户指定其他分支时才检查旧分支残留。当前仓库默认分支为 `main`（见 §6），
+> 故 issues／PR／compare 链接中的 `blob/main` 无需替换。
 
 ---
 
@@ -100,7 +99,8 @@ __OWNER__ / __REPO_NAME__ := 由用户提供的 URL 解析，不得反推
      --exclude-dir=.pytest_cache --exclude='REPO_METADATA.md' \
      README.md pyproject.toml CITATION.cff CONTRIBUTING.md CODE_OF_CONDUCT.md \
      SECURITY.md CHANGELOG.md NOTICE LICENSE .github/workflows/ci.yml
-   # S2 后期望：无输出（0 残留）；另 grep -rnE 'blob/main|/tree/main|\.\.\.HEAD' 确认无旧分支写法
+   # S2 后期望：无输出（0 残留）；分支段须与 §6 实际取值 main 一致，blob/main 是合法最终值，
+   # 仅当用户指定其他分支时才检查旧分支残留
    ```
 4. **S3**：本地最终验证（PRD-OPENSOURCE §3 十条判据 + ARCH-OPENSOURCE v1.1 §7 A–F）。
 5. **S4**：`git init` → remote（**只用用户地址**）→ 本地首次提交【**停在推送前**】；提交信息不含密钥。

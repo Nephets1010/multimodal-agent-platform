@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import io
+import os
 import wave
 from pathlib import Path
 from typing import Any
@@ -25,7 +26,19 @@ from app.schemas import RawInput
 
 @pytest.fixture(autouse=True)
 def _demo_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-    """每个 test 独立的 DEMO 环境 + 隔离运行期目录。"""
+    """每个 test 独立的 DEMO 环境 + 隔离运行期目录。
+
+    QA-T08：先用 ``monkeypatch.delenv`` 清掉所有会影响 ``get_settings()`` 的
+    宿主环境变量（历史短别名 + ``MAP_`` 项目前缀键），再固定 ``DEMO_MODE=1``。
+    实测未清理时宿主注入 ``AGENT_MAX_STEPS=3`` / ``HUMAN_IN_LOOP=1`` /
+    ``HOST+PORT`` 分别导致 3 / 3 / 2 条用例失败，属测试脆弱性而非源码缺陷。
+    """
+    for aliases in config.SHORT_ALIASES.values():
+        for alias in aliases:
+            monkeypatch.delenv(alias, raising=False)
+    for key in list(os.environ):
+        if key.startswith(config.ENV_PREFIX):
+            monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("DEMO_MODE", "1")
     config.reset_settings_cache()
     config._PATH_OVERRIDES.clear()

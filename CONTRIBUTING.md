@@ -59,7 +59,8 @@
 - 测试用 `tmp_path` 隔离运行期 `data/`，可重复运行、不污染工作树。
 - 边界用例至少覆盖：空／超长 query、未知扩展名与畸形文件、非法 JSON、空索引与损坏索引、
   工具超时、超 `max_steps`、`trace_id` 不存在、SSE 客户端断连、可选依赖缺失、配置 Key 但仍 DEMO。
-- CI（`.github/workflows/ci.yml`）只跑 `compileall` + `pytest` + `scripts/demo.py`，不引入外部 lint、
+- CI（`.github/workflows/ci.yml`）五步：`compileall` → `pytest` → `scripts/demo.py` →
+  `DEMO_MODE=1 python3 -m app.observability.evaluator` → 内联契约冒烟；不引入外部 lint、
   不安装可选依赖、不使用 secrets。
 
 ## 5. 提交与 Pull Request 流程

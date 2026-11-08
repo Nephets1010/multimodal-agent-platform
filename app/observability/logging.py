@@ -24,8 +24,10 @@ REDACTED = "***REDACTED***"
 
 #: Authorization / Bearer / token= / password= / sk- 前缀凭据（大小写不敏感）。
 #: 命中后整行剩余内容一并脱敏，避免 ``Bearer <token>`` 只吃掉前缀而残留密钥值。
+#: ``sk-`` 分支加词边界与最小长度：``task-list`` / ``mask-value`` / ``disk-space``
+#: 这类含 ``sk-`` 子串的普通词不再被误吞，同时凭据仍由 secrets 集合与其余分支兜住。
 _SECRET_PATTERN = re.compile(
-    r"(?i)(authorization\s*[:=]\s*|bearer\s+|token=|password=|sk-)[^\n]*"
+    r"(?i)(authorization\s*[:=]\s*|bearer\s+|token=|password=|(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{8,})[^\n]*"
 )
 _SENSITIVE_KEY_PARTS = (
     "key",
@@ -54,6 +56,8 @@ _SENSITIVE_SNAPSHOT_KEYS = (
     "answer",
 )
 _MAX_MESSAGE = 512
+#: 异常堆栈单独放宽上限，避免只剩前 512 字符看不到最内层帧。
+_MAX_TRACEBACK = 4096
 
 _GLOBAL_SECRETS: set[str] = set()
 _CONFIGURED = False
@@ -104,16 +108,30 @@ def collect_secrets(settings: Any | None = None) -> set[str]:
 # --------------------------------------------------------------------------- #
 
 
-def redact_text(text: Any, secrets: set[str] | None = None) -> str:
-    """正则脱敏 + 已知明文子串替换 + 长度截断（保证单行且不含敏感原文）。"""
+def redact_text(
+    text: Any, secrets: set[str] | None = None, limit: int | None = None
+) -> str:
+    """正则脱敏 + 已知明文子串替换 + 长度截断（保证单行且不含敏感原文）。
+
+    ``limit`` 可覆盖默认 ``_MAX_MESSAGE``，用于给 ``traceback`` 单独放宽上限；
+    不传时行为与既有实现完全一致。
+    """
     result = text if isinstance(text, str) else str(text)
     active = set(secrets or ()) | _GLOBAL_SECRETS
     result = _SECRET_PATTERN.sub(REDACTED, result)
     for secret in sorted(active, key=len, reverse=True):
         if secret and len(secret) >= 4 and secret in result:
             result = result.replace(secret, REDACTED)
-    if len(result) > _MAX_MESSAGE:
-        result = result[:_MAX_MESSAGE] + "…(truncated)"
+    max_length = _MAX_MESSAGE if limit is None else max(1, int(limit))
+    if len(result) > max_length:
+        if limit is None:
+            # 普通消息保持既有行为：只保留前 512 字符。
+            result = result[:max_length] + "…(truncated)"
+        else:
+            # 堆栈：头部保留调用链起点、尾部保留最内层帧与异常消息，中间省略。
+            head = max_length // 2
+            tail = max_length - head
+            result = result[:head] + "…(truncated)…" + result[-tail:]
     return result
 
 
@@ -168,27 +186,31 @@ class JsonFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         active = self._secrets | _GLOBAL_SECRETS
+        # 所有文本字段统一收口脱敏（含 512 截断）；数值/布尔 extra 保持原类型。
         payload: dict[str, Any] = {
             "ts": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
             "level": record.levelname,
-            "event": str(getattr(record, "event", "log")),
-            "component": str(getattr(record, "component", "-")),
-            "trace_id": str(getattr(record, "trace_id", "-")),
+            "event": redact_text(getattr(record, "event", "log"), active),
+            "component": redact_text(getattr(record, "component", "-"), active),
+            "trace_id": redact_text(getattr(record, "trace_id", "-"), active),
             "message": redact_text(record.getMessage(), active),
         }
         for extra_key in ("elapsed_ms", "fallback", "node", "strategy", "steps"):
             if hasattr(record, extra_key):
-                payload[extra_key] = getattr(record, extra_key)
+                value = getattr(record, extra_key)
+                payload[extra_key] = (
+                    redact_text(value, active) if isinstance(value, str) else value
+                )
         if record.exc_info:
             # 堆栈只进结构化日志（且经脱敏），绝不进 HTTP 响应。
             payload["traceback"] = redact_text(
-                self.formatException(record.exc_info), active
+                self.formatException(record.exc_info), active, limit=_MAX_TRACEBACK
             )
         return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str)
 
 
 class RedactFilter(logging.Filter):
-    """在 ``record`` 进入 Formatter 前，对 ``message`` 与 ``args`` 渲染结果做脱敏。"""
+    """在 ``record`` 进入 Formatter 前，对 ``message`` / ``args`` / ``trace_id`` 做脱敏。"""
 
     def __init__(self, secrets: set[str] | None = None) -> None:
         super().__init__()
@@ -205,6 +227,9 @@ class RedactFilter(logging.Filter):
             # 用已渲染的脱敏文本替换 msg 并清空 args，避免破坏 %-formatting。
             record.msg = cleaned
             record.args = ()
+        trace_id = getattr(record, "trace_id", None)
+        if trace_id is not None:
+            record.trace_id = redact_text(trace_id, active)
         return True
 
 

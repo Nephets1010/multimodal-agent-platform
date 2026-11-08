@@ -9,6 +9,7 @@ DEMO 或 ``backend=stub`` → :class:`StubEncoder`（``hashlib`` 词频 + 字符
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import importlib.util
 import re
@@ -23,6 +24,18 @@ if TYPE_CHECKING:
     from app.config import Settings
 
 _TOKEN_RE = re.compile(r"[\u4e00-\u9fff]|[a-zA-Z0-9]+")
+
+
+@functools.lru_cache(maxsize=4096)
+def _token_digest(token: str) -> int:
+    """确定性 token 摘要（带缓存）；输出与原逐次 ``sha256`` 完全一致。"""
+    return int(hashlib.sha256(token.encode("utf-8")).hexdigest()[:8], 16)
+
+
+@functools.lru_cache(maxsize=4096)
+def _char_digest(char: str) -> int:
+    """确定性字符摘要（带缓存）；输出与原逐次 ``sha256`` 完全一致。"""
+    return int(hashlib.sha256(("char:" + char).encode("utf-8")).hexdigest()[:8], 16)
 
 
 class BaseEncoder(ABC):
@@ -51,15 +64,13 @@ class StubEncoder(BaseEncoder):
         source = text or ""
 
         for token in _TOKEN_RE.findall(source.lower()):
-            digest = int(hashlib.sha256(token.encode("utf-8")).hexdigest()[:8], 16)
+            digest = _token_digest(token)
             vec[digest % self.dim] += 1.0
             vec[(digest >> 8) % self.dim] += 0.25
 
         # 字符分布分桶：与词频桶用不同前缀，保证不同文本有稳定区分度。
         for char in source:
-            digest = int(
-                hashlib.sha256(("char:" + char).encode("utf-8")).hexdigest()[:8], 16
-            )
+            digest = _char_digest(char)
             vec[digest % self.dim] += 0.3
 
         norm = float(np.linalg.norm(vec))

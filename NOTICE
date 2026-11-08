@@ -19,5 +19,5 @@ The optional dependencies listed above are not redistributed with this
 project; each retains its own license as published by its respective owner.
 Core dependencies likewise retain their respective upstream licenses.
 
-The copyright year and holder above are placeholders registered in
-docs/REPO_METADATA.md; they must be replaced before any public release.
+S2 has been completed and the repository is public; see docs/REPO_METADATA.md §6.
+The copyright year and holder above are the final values confirmed by the user.

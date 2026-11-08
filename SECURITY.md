@@ -67,4 +67,4 @@ HOST=127.0.0.1 PORT=8000 DEMO_MODE=1 python3 -m app.main
 - 已知限制汇总：`README.md` §6；行为契约：`docs/PRD.md` §4
 - 占位符登记：`docs/REPO_METADATA.md`
 
-本文件中的 URL 与联系渠道为占位符，属地址未到位期间的冻结状态；S2 全量替换前不得推送。
+S2 已执行完毕、仓库已公开，见 `docs/REPO_METADATA.md` §6；本文件中的 URL 与联系渠道为最终生效取值。

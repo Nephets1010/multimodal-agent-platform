@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from app.agent.state import AgentState, make_trace_id
+from app.observability.logging import get_logger
 from app.schemas import EvalDetail, EvalResponse, EvalSample
 
 if TYPE_CHECKING:
@@ -36,7 +37,12 @@ class Evaluator:
         samples: list[EvalSample] = []
         try:
             text = path.read_text(encoding="utf-8")
-        except OSError:
+        except OSError as exc:
+            get_logger("observability.evaluator").warning(
+                "评测样例文件读取失败: %s",
+                type(exc).__name__,
+                extra={"event": "eval_samples_unreadable"},
+            )
             return samples
         for line in text.splitlines():
             line = line.strip()

@@ -10,7 +10,7 @@ import json
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from app.observability.logging import collect_secrets, redact_snapshot
+from app.observability.logging import collect_secrets, get_logger, redact_snapshot
 from app.schemas import TraceEvent
 
 if TYPE_CHECKING:
@@ -46,18 +46,24 @@ class AgentTracer:
             return []
         events: list[dict[str, Any]] = []
         try:
-            text = self._path.read_text(encoding="utf-8")
-        except OSError:
-            return []
-        for line in text.splitlines():
-            if not line.strip():
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(record, dict) and record.get("trace_id") == trace_id:
-                events.append(record)
+            # 流式逐行读取：避免把整个 traces.jsonl 一次性读入内存。
+            with self._path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    if not line.strip():
+                        continue
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(record, dict) and record.get("trace_id") == trace_id:
+                        events.append(record)
+        except OSError as exc:
+            # 与「文件不存在」区分：读取失败要留痕，返回结构保持不变。
+            get_logger("observability.tracer").warning(
+                "轨迹文件读取失败: %s",
+                type(exc).__name__,
+                extra={"event": "trace_unreadable"},
+            )
         return events
 
     def close(self) -> None:

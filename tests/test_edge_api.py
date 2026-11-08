@@ -11,6 +11,8 @@ DEMO ``/health`` 响应形状、以及未预期异常绝不直出堆栈。
 from __future__ import annotations
 
 import json
+import logging
+import time
 from typing import Any
 
 import pytest
@@ -325,3 +327,69 @@ class TestHealthAndExceptionBoundary:
         tokens = "".join(data["delta"] for name, data in parsed if name == "token")
         assert tokens == done["answer"]
         assert parsed[0][1]["trace_id"] == done["trace_id"]
+
+    def test_sse_disconnect_via_streaming_response(self, edge_client, caplog):
+        """QA-T02：routes 级 SSE 断连保护必须有回归守护。
+
+        NEG-2 证明把 ``routes._generate()`` 的 try/except/finally 整段换成裸
+        ``for...yield`` 后 139 条仍全绿（既有断连用例只 close 了 graph 层生成器）。
+        这里用真实 ``StreamingResponse`` 读到第一帧就断开，断言断连/收尾日志出现，
+        且不抛异常、不残留半帧；不断言异常路径日志条数（工程师补了 exc_info）。
+        """
+        caplog.set_level(logging.INFO, logger="multimodal_agent_platform")
+        with edge_client.stream(
+            "POST", CHAT, json={"query": "介绍一下平台", "stream": True}
+        ) as response:
+            assert response.status_code == 200
+            assert response.headers["content-type"].startswith("text/event-stream")
+            lines = response.iter_lines()
+            assert next(lines) == "event: meta"
+            # 不读完就退出 with：触发 GeneratorExit → routes._generate 断连分支
+
+        # 退出 with 只完成「客户端侧」关闭；生成器的 finally 在工作线程中异步执行，
+        # 全量套件负载下可能晚于断言。这里做有界轮询（上限 2s），判据不变：
+        # 收尾日志必须出现，只是不再假定它与 with 退出处于同一时刻。
+        deadline = time.monotonic() + 2.0
+        events: list[Any] = []
+        while time.monotonic() < deadline:
+            events = [getattr(record, "event", None) for record in caplog.records]
+            if "sse_client_disconnected" in events or "sse_completed" in events:
+                break
+            time.sleep(0.01)
+        assert "sse_client_disconnected" in events or "sse_completed" in events, (
+            f"断连后未出现收尾日志：{events}"
+        )
+
+
+class TestIdempotency:
+    """QA-T17：重复调用不得改变业务结果或索引状态。"""
+
+    def test_duplicate_ingest_does_not_grow_index(self, edge_client, edge_ctx):
+        payload = {"files": ("same.txt", b"idempotent content", "text/plain")}
+        first = edge_client.post(INGEST, files=payload)
+        count_after_first = edge_ctx.index.count()
+        second = edge_client.post(INGEST, files=payload)
+        assert first.status_code == second.status_code == 200
+        assert first.json()["total"] == second.json()["total"]
+        assert [c["chunk_id"] for c in first.json()["chunks"]] == [
+            c["chunk_id"] for c in second.json()["chunks"]
+        ]
+        assert edge_ctx.index.count() == count_after_first
+
+    def test_repeated_chat_has_stable_contract(self, edge_client):
+        body = {"query": "计算 12*8 的结果", "stream": False}
+        first = edge_client.post(CHAT, json=body)
+        second = edge_client.post(CHAT, json=body)
+        assert first.status_code == second.status_code == 200
+        assert set(first.json()) == _UNIFIED_FIELDS == set(second.json())
+        assert first.json()["steps"] == second.json()["steps"]
+        assert "96" in first.json()["answer"] and "96" in second.json()["answer"]
+
+    def test_repeated_eval_is_deterministic(self, edge_client):
+        first = edge_client.post("/v1/eval", json={}).json()
+        second = edge_client.post("/v1/eval", json={}).json()
+        assert set(first) == set(second)
+        assert first["samples"] == second["samples"] == 8
+        assert first["hit_rate"] == second["hit_rate"]
+        assert first["tool_hit_rate"] == second["tool_hit_rate"]
+        assert first["avg_steps"] == second["avg_steps"]

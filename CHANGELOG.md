@@ -20,11 +20,12 @@
 - `CONTRIBUTING.md` / `CODE_OF_CONDUCT.md` / `SECURITY.md`：贡献流程、自写精简版行为准则、
   安全披露（明确「无鉴权属设计边界而非漏洞」与 `0.0.0.0` 暴露风险）。
 - `CITATION.cff`：CFF 1.2.0，可被 PyYAML 解析。
-- `.github/workflows/ci.yml`：Python 3.11、全局 `DEMO_MODE=1`、`compileall` + `pytest` + `scripts/demo.py`
-  三步流水线，零联网零 Key、无 secrets／外部 lint／产物上传。
+- `.github/workflows/ci.yml`：Python 3.11、全局 `DEMO_MODE=1`，五步流水线
+  `compileall` → `pytest` → `scripts/demo.py` → `DEMO_MODE=1 python3 -m app.observability.evaluator`
+  → 内联契约冒烟，零联网零 Key、无 secrets／外部 lint／产物上传。
 - `README.md` §8 开源与社区：徽章与许可证、克隆、能力边界、贡献、行为准则、安全披露、引用与变更、致谢。
 - `.gitignore`：追加 `dist/`／`build/`／`.mypy_cache/`／`.ruff_cache/`／`.coverage`，既有忽略项零删减。
-- `docs/REPO_METADATA.md`：9 个统一占位符与 12 个 RP 点的集中登记与替换后校验方式。
+- `docs/REPO_METADATA.md`：11 个符号（含派生）与 12 个 RP 点的集中登记与替换后校验方式。
 
 ### 修复 · 2 个遗留缺陷
 

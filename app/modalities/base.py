@@ -114,18 +114,8 @@ def detect_modality(name: str, mime: str, settings: "Settings") -> str:
     if normalized_mime in _MIME_TO_MODALITY:
         return _MIME_TO_MODALITY[normalized_mime]
 
+    # 错误提示与实际判定同源：统一用 MODALITY_BY_EXT，避免配置漂移时提示撒谎。
     allowed = ", ".join(sorted(MODALITY_BY_EXT))
-    # 若配置层另行给出了白名单，把它一并展示，便于用户排查。
-    try:
-        configured = settings.ingest.allowed_extensions
-        if configured:
-            configured_all = sorted(
-                {e for exts in configured.values() for e in exts}
-            )
-            if configured_all:
-                allowed = ", ".join(configured_all)
-    except AttributeError:
-        pass
     raise IngestError(
         f"不支持的扩展名 {ext or '(无扩展名)'}，仅允许 {allowed}",
         code="unsupported_extension",

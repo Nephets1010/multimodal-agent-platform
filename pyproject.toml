@@ -5,8 +5,8 @@
 # 不产生可安装 console script；CI 与 DEMO 一律 `pip install -r requirements.txt`
 # 后使用 `python3 -m pytest -q tests` / `python3 scripts/demo.py` 等命令。
 #
-# 作者、版权与仓库地址均为占位符，集中登记在 docs/REPO_METADATA.md。
-# 地址到位后由主理人执行 S2 一次性全量替换，替换完成前不得推送。
+# S2 已执行完毕、仓库已公开，见 docs/REPO_METADATA.md §6。
+# 作者、版权与仓库地址均为该节登记的最终生效取值。
 
 [project]
 name = "multimodal-agent-platform"

@@ -138,7 +138,7 @@ DEMO_MODE=1 python3 -m app.observability.evaluator                      # = make
 
 SSE 帧逐字节约定：`event: <name>\ndata: <单行 JSON>\n\n`（**禁止缩进多行 JSON**，前端逐行 `JSON.parse` 会静默吞错）；顺序 `meta → step* → token* → [human_required] → done`；`done` 恒存在、恒为最后一帧，携带完整 11 字段 `UnifiedResponse`，且与非流式由同一个 `build_unified_response()` 产出；所有 `token.delta` 拼接后等于 `done.answer`。
 
-`UnifiedResponse` **11 字段完整枚举**（不得删改／重命名；非流式响应与 SSE `done` 字段集合一致）：`answer` / `evidences[]`（`chunk_id`·`modality`·`snippet`·`score`） / `tool_calls[]`（`name`·`arguments`） / `tool_results[]`（`name`·`ok`·`elapsed_ms`·`output`·`error`，`error` 成功时仍存在取 `null`） / `trace_id` / `steps` / `elapsed_ms` / `status` / `output_modality` / `demo_mode` / `graph_backend`。
+`UnifiedResponse` **11 字段完整枚举**（不得删改／重命名；非流式响应与 SSE `done` 字段集合一致）：`answer` / `evidences[]`（`chunk_id`·`modality`·`snippet`·`score`·`source_id`） / `tool_calls[]`（`name`·`arguments`·`id`） / `tool_results[]`（`name`·`ok`·`elapsed_ms`·`output`·`error`，`error` 成功时仍存在取 `null`） / `trace_id` / `steps` / `elapsed_ms` / `status` / `output_modality` / `demo_mode` / `graph_backend`。
 
 ---
 
@@ -200,8 +200,8 @@ python3 -m pip install -r requirements.txt
 ```
 
 克隆后直接按 §1 的四条等价命令运行（本机 `make` 不可用时请用 `python3` 命令）；
-`DEMO_MODE=1` 下零 API Key、零 GPU、零联网、零权重下载。仓库地址与目录名均为占位符，
-登记与替换方式见 `docs/REPO_METADATA.md`。
+`DEMO_MODE=1` 下零 API Key、零 GPU、零联网、零权重下载。S2 已执行完毕、仓库已公开，
+见 `docs/REPO_METADATA.md` §6。
 
 ### 8.3 能力边界与定位
 
@@ -258,8 +258,7 @@ HOST=127.0.0.1 PORT=8000 DEMO_MODE=1 python3 -m app.main
 也不依赖第三方 API；DEMO 链路的能力来自这些基础库与自建的确定性 stub 实现，
 不夸大效果、不宣称模型准确率。
 
-> 本节全部 URL 与身份字段使用 `docs/REPO_METADATA.md` 登记的占位符；
-> 地址到位后由维护者执行 S2 一次性全量替换，**替换完成前不得推送**。
+> S2 已执行完毕、仓库已公开，见 `docs/REPO_METADATA.md` §6；本节 URL 与身份字段均为最终生效取值。
 
 ---
 

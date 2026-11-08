@@ -17,6 +17,7 @@ from __future__ import annotations
 import functools
 import importlib.util
 import json
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -248,7 +249,10 @@ def _coerce(raw: str, default: Any, path: str) -> Any:
         if isinstance(default, int):
             return int(raw)
         if isinstance(default, float):
-            return float(raw)
+            value = float(raw)
+            if not math.isfinite(value):
+                raise ValueError(f"必须是有限数值，收到 {raw!r}")
+            return value
         if isinstance(default, list):
             parsed = json.loads(raw)
             if not isinstance(parsed, list):

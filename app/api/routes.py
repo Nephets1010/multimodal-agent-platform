@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Iterator
 
@@ -25,6 +26,7 @@ from app.schemas import (
     HealthComponents,
     HealthResponse,
     IngestChunkItem,
+    IngestError,
     IngestResponse,
     ModalityError,
     PlatformError,
@@ -37,6 +39,9 @@ from app.schemas import (
 
 if TYPE_CHECKING:
     from app.runtime import AppContext
+
+#: 组合根 once 保护：仅保证并发下 ``build_context()`` 只调用一次，不是索引写入锁。
+_CTX_LOCK = threading.Lock()
 
 router = APIRouter()
 logger = get_logger("api.routes")
@@ -57,10 +62,14 @@ def _ctx(request: Request) -> "AppContext":
     """
     ctx = getattr(request.app.state, "ctx", None)
     if ctx is None:
-        from app.runtime import build_context  # 局部导入，避免循环
+        # 双重检查 + once 锁：并发下保证 build_context() 只调用一次（非索引写入锁）。
+        with _CTX_LOCK:
+            ctx = getattr(request.app.state, "ctx", None)
+            if ctx is None:
+                from app.runtime import build_context  # 局部导入，避免循环
 
-        ctx = build_context()
-        request.app.state.ctx = ctx
+                ctx = build_context()
+                request.app.state.ctx = ctx
     return ctx
 
 
@@ -130,7 +139,13 @@ async def ingest(
 
     try:
         for safe_name, data, mime in uploads:
-            temporary_path = save_temporary(data, safe_name, ctx.paths.tmp_dir)
+            try:
+                temporary_path = save_temporary(data, safe_name, ctx.paths.tmp_dir)
+            except OSError as exc:
+                # 复用既有 IngestError(400) 映射，不新增全局 handler。
+                raise IngestError(
+                    "临时文件写入失败：文件名过长或磁盘不可用，请缩短文件名后重试"
+                ) from exc
             temporary_paths.append(temporary_path)
             try:
                 modality = detect_modality(safe_name, mime, ctx.settings)
@@ -255,6 +270,7 @@ async def chat(request: Request, payload: ChatRequest) -> Any:
             logger.error(
                 "SSE 生成异常：%s",
                 type(exc).__name__,
+                exc_info=True,
                 extra={"event": "sse_error", "trace_id": trace_id},
             )
             emergency = build_unified_response(state, ctx.settings, trace_id, 0.0)

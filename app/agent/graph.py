@@ -84,8 +84,12 @@ def _emit_trace(ctx: Any, snap: AgentState, event_name: str) -> None:
                 state_snapshot=snap.to_dict(),
             )
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        get_logger("agent.graph").warning(
+            "trace emit failed: %s",
+            type(exc).__name__,
+            extra={"event": "trace_emit_failed", "fallback": True},
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -219,8 +223,9 @@ class CompiledGraph(ABC):
         unified = build_unified_response(
             final, self.ctx.settings, final.trace_id, final.elapsed_ms
         )
-        yield ("done", unified.model_dump(mode="json"))
+        # done 轨迹须在 yield 之前写出：客户端收到 done 后立即断连也能回放完整轨迹。
         _emit_trace(self.ctx, final, "done")
+        yield ("done", unified.model_dump(mode="json"))
 
     def resume(self, state: AgentState, decision: str = "approved") -> AgentState:
         """Q10：仅图层 API，本期无 REST 恢复端点。批准即清除断点并收敛。"""

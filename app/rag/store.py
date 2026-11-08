@@ -74,10 +74,15 @@ class InMemoryVectorStore(VectorStore):
         query_norm = float(np.linalg.norm(query))
         allowed = set(modalities or [])
         scored: list[tuple[ModalityChunk, float]] = []
-        for chunk_id, chunk in self._chunks.items():
+        # 只读快照：并发 add 时避免 "dictionary changed size during iteration"；
+        # 快照中的 chunk 可能尚无对应向量（add 的赋值窗口），跳过即可，正常路径结果不变。
+        for chunk_id, chunk in list(self._chunks.items()):
             if allowed and chunk.modality not in allowed:
                 continue
-            doc = np.asarray(self._vectors.get(chunk_id, []), dtype=np.float64)
+            raw_vector = self._vectors.get(chunk_id)
+            if not raw_vector:
+                continue
+            doc = np.asarray(raw_vector, dtype=np.float64)
             if doc.shape[0] != query.shape[0]:
                 continue
             denominator = query_norm * float(np.linalg.norm(doc))
@@ -92,7 +97,7 @@ class InMemoryVectorStore(VectorStore):
 
     def all_chunks(self) -> list[ModalityChunk]:
         """按 ``chunk_id`` 排序返回全部切片，供 BM25 / 关键词回退使用（确定性）。"""
-        return [self._chunks[key] for key in sorted(self._chunks)]
+        return [self._chunks[key] for key in sorted(list(self._chunks))]
 
     def persist(self) -> None:
         items = list(self._chunks.items())
@@ -102,10 +107,20 @@ class InMemoryVectorStore(VectorStore):
             "vectors": [self._vectors[chunk_id] for chunk_id, _ in items],
         }
         self._index_path.parent.mkdir(parents=True, exist_ok=True)
-        self._index_path.write_text(
-            json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-            encoding="utf-8",
-        )
+        # 原子写：先写同目录临时文件，成功后再替换目标；失败清理 tmp 并保留上一次合法索引。
+        tmp_path = Path(str(self._index_path) + ".tmp")
+        try:
+            tmp_path.write_text(
+                json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+                encoding="utf-8",
+            )
+            tmp_path.replace(self._index_path)
+        except OSError:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            raise
 
     def load(self) -> None:
         """读取持久化索引；损坏 → 清空重建 + warning，**不抛到 HTTP 层**（P0-11）。"""

@@ -16,6 +16,7 @@ from typing import Any, Protocol
 
 from app.agent.state import AgentState
 from app.generation.router import stringify_output, synthesize_answer
+from app.observability.logging import get_logger
 from app.schemas import ToolCall
 
 # --------------------------------------------------------------------------- #
@@ -147,6 +148,11 @@ def reflector_node(state: AgentState, ctx: GraphContext) -> AgentState:
     try:
         evidences, debug = ctx.retriever.retrieve(state.query, modalities, top_k)
     except Exception as exc:
+        get_logger("agent.nodes").warning(
+            "retriever failed: %s",
+            type(exc).__name__,
+            extra={"event": "retriever_failed", "fallback": True},
+        )
         evidences = []
         debug = {"strategy": "empty", "retriever_error": type(exc).__name__}
 

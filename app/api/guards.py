@@ -16,6 +16,7 @@ from uuid import uuid4
 from fastapi import UploadFile
 
 from app.modalities.base import MODALITY_BY_EXT
+from app.observability.logging import get_logger
 from app.schemas import IngestError
 
 if TYPE_CHECKING:
@@ -30,6 +31,9 @@ def sanitize_filename(name: str) -> str:
     safe = _UNSAFE_NAME_RE.sub("_", base)
     if not safe or ".." in safe or safe.startswith("."):
         raise IngestError(f"非法文件名：{name or '(空)'}（不允许路径穿越、空名或隐藏文件）")
+    # save_temporary 会拼 32 字符 uuid 前缀，128 上限可避开文件系统 NAME_MAX/MAX_PATH。
+    if len(safe) > 128:
+        raise IngestError("文件名过长（最多 128 字符），请缩短后重试")
     return safe
 
 
@@ -78,8 +82,12 @@ def cleanup_temporary(paths: list[Path]) -> None:
     for path in paths:
         try:
             Path(path).unlink(missing_ok=True)
-        except OSError:
-            pass
+        except OSError as exc:
+            get_logger("api.guards").warning(
+                "临时文件清理失败: %s",
+                type(exc).__name__,
+                extra={"event": "tmp_cleanup_failed"},
+            )
 
 
 __all__ = [

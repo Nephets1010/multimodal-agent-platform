@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import math
+
+import pytest
 
 from app.rag.encoder import StubEncoder
 from app.rag.retriever import HybridRetriever
 from app.rag.store import InMemoryVectorStore, VectorIndex
-from app.schemas import RawInput
+from app.schemas import ModalityChunk, RawInput
 
 
 def test_stub_encoder_is_bitwise_deterministic():
@@ -26,10 +30,17 @@ def test_stub_encoder_zero_vector_has_no_nan():
 
 
 def test_hybrid_retrieval_hits_builtin_knowledge(ctx):
-    """P0-2：「混合检索说明」类问题命中内置知识切片，evidences[] 非空。"""
+    """P0-2：正常问题必须走稠密+BM25 的 hybrid，而非退化成纯关键词回退。
+
+    QA-T05：原断言 ``in ("hybrid", "keyword_fallback")`` 被 NEG-5 证明是假绿
+    （把 ``strategy = "hybrid"`` 改成 ``"keyword_fallback"`` 后 139 条仍全绿）。
+    本机实测 DEMO 下 ``strategy="hybrid"``、``dense_candidates=4``。
+    回退语义由 ``test_keyword_fallback_when_dense_has_no_result`` 等既有用例守护。
+    """
     evidences, debug = ctx.retriever.retrieve("请说明混合检索策略", [], 5)
+    assert debug["strategy"] == "hybrid"
+    assert debug["dense_candidates"] > 0
     assert evidences
-    assert debug["strategy"] in ("hybrid", "keyword_fallback")
     assert all(len(item.model_dump()) >= 4 for item in evidences)
     assert all(item.snippet for item in evidences)
 
@@ -104,3 +115,68 @@ def test_ensure_bootstrap_is_idempotent(ctx):
     count_before = ctx.index.count()
     ctx.index.ensure_bootstrap(TextProcessor())
     assert ctx.index.count() == count_before
+
+
+# --------------------------------------------------------------------------- #
+# QA-T11：索引持久化损坏恢复（4 类 payload）+ 原子写后目标文件内容
+# --------------------------------------------------------------------------- #
+
+
+_VALID_CHUNK = {
+    "chunk_id": "chk_ok",
+    "source_id": "qa:persist",
+    "modality": "text",
+    "content": "x",
+    "metadata": {},
+}
+
+_CORRUPT_PAYLOADS = [
+    ('{"chunks": [', "JSON 截断"),
+    (
+        json.dumps({"chunks": [_VALID_CHUNK], "vectors": []}),
+        "chunks/vectors 数量不一致",
+    ),
+    (
+        json.dumps({"chunks": ["not-an-object"], "vectors": [[0.0]]}),
+        "非法 chunk 模型",
+    ),
+    (
+        json.dumps({"chunks": [_VALID_CHUNK], "vectors": [["not-a-float"]]}),
+        "float 转换失败",
+    ),
+    (
+        json.dumps({"chunks": "not-a-list", "vectors": []}),
+        "结构不是数组",
+    ),
+]
+
+
+@pytest.mark.parametrize(("payload", "_reason"), _CORRUPT_PAYLOADS)
+def test_corrupted_index_payload_clears_store_without_raising(
+    ctx, caplog, payload, _reason
+):
+    ctx.paths.index_path.write_text(payload, encoding="utf-8")
+    with caplog.at_level(logging.WARNING, logger="multimodal_agent_platform"):
+        store = InMemoryVectorStore(ctx.settings, ctx.paths)
+        store.load()  # 必须不抛
+    assert store.count() == 0, _reason
+    assert any(
+        getattr(record, "event", None) == "index_corrupted"
+        for record in caplog.records
+    ), _reason
+
+
+def test_persist_writes_compact_equal_length_payload(ctx):
+    """只针对最终目标文件断言（A-02 原子写会先写 tmp 再 replace）。"""
+    store = InMemoryVectorStore(ctx.settings, ctx.paths)
+    chunk = ModalityChunk.model_validate(_VALID_CHUNK)
+    store.add([chunk], [[1.0, 2.0]])
+    store.persist()
+
+    text = ctx.paths.index_path.read_text(encoding="utf-8")
+    data = json.loads(text)
+    assert data["version"] == 1
+    assert len(data["chunks"]) == len(data["vectors"]) == 1
+    assert data["chunks"][0]["chunk_id"] == "chk_ok"
+    assert "\n" not in text
+    assert '": ' not in text and '", "' not in text  # separators=(",", ":") 紧凑写法

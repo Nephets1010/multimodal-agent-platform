@@ -35,7 +35,7 @@ def create_app() -> FastAPI:
         # 三处（main / demo.py / conftest.py）复用同一个 build_context()；
         # 若调用方已预置 ctx（demo / tests 需要复用同一份装配），则不重复构造。
         if getattr(application.state, "ctx", None) is None:
-            application.state.ctx = build_context(settings)
+            application.state.ctx = build_context()
         logger.warning(
             "未实现鉴权/多租户/会话持久化/并发写入锁，"
             "仅限本机或可信内网单机演示，勿暴露公网",

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -19,8 +20,8 @@ from fastapi.testclient import TestClient
 
 import app.config as config
 from app.agent.state import AgentState, make_trace_id
-from app.generation.router import build_unified_response
 from app.modalities.text import TextProcessor
+from app.observability.tracer import AgentTracer
 from app.rag.store import InMemoryVectorStore, VectorIndex
 from app.runtime import build_context
 
@@ -332,3 +333,41 @@ class TestTraceContent:
         steps = [item["steps"] for item in records if item["event"] == "step"]
         assert steps == sorted(steps)
         assert records[-1]["event"] == "done"
+
+    def test_replay_skips_corrupt_and_empty_lines(self, edge_ctx):
+        """QA-T03：损坏行/空行必须安全跳过，合法行按写入顺序返回。"""
+        good_one = {
+            "trace_id": "tr_a", "event": "step", "node": "planner",
+            "steps": 1, "status": "ok",
+        }
+        good_two = {
+            "trace_id": "tr_a", "event": "step", "node": "worker",
+            "steps": 2, "status": "ok",
+        }
+        other = {"trace_id": "tr_b", "event": "step", "node": "reflector"}
+        edge_ctx.paths.trace_path.write_text(
+            "\n".join(
+                [
+                    json.dumps(good_one, ensure_ascii=False),
+                    "{broken json",
+                    "",
+                    "   ",
+                    json.dumps(other, ensure_ascii=False),
+                    json.dumps(good_two, ensure_ascii=False),
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        events = edge_ctx.tracer.replay("tr_a")
+        assert [item["node"] for item in events] == ["planner", "worker"]
+        assert edge_ctx.tracer.replay("tr_b") == [other]
+        assert edge_ctx.tracer.replay("tr_missing") == []
+
+    def test_replay_missing_file_returns_empty(self, edge_ctx, tmp_path: Path):
+        """QA-T03：轨迹文件不存在时返回空列表，不抛异常。"""
+        missing_paths = SimpleNamespace(
+            trace_path=tmp_path / "absent" / "traces.jsonl"
+        )
+        tracer = AgentTracer(missing_paths, edge_ctx.settings)
+        assert tracer.replay("anything") == []

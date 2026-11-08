@@ -190,10 +190,75 @@ def test_resume_is_graph_layer_api(ctx):
 
 
 def test_state_roundtrip_serialization(ctx):
+    """QA-T01：to_dict() 必须保真全部 19 键，from_dict() 逐字段还原。
+
+    负向验证 NEG-1 证明：删除 ``to_dict()`` 里的 ``evidences`` 后原用例仍全绿，
+    因此这里显式钉住键集合与关键字段，避免状态快照/LangGraph 恢复静默丢数据。
+    """
     final = ctx.graph.run(_state("计算 12*8 的结果"))
-    restored = AgentState.from_dict(final.to_dict())
+    snapshot = final.to_dict()
+    assert set(snapshot) == {
+        "trace_id",
+        "session_id",
+        "query",
+        "steps",
+        "max_steps",
+        "plan",
+        "tool_calls",
+        "tool_results",
+        "evidences",
+        "answer",
+        "status",
+        "node",
+        "next_node",
+        "last_observation",
+        "last_debug",
+        "human_required",
+        "pending_step",
+        "fallback_flags",
+        "elapsed_ms",
+    }
+    restored = AgentState.from_dict(snapshot)
+    restored_snapshot = restored.to_dict()
+    for key in ("evidences", "plan", "last_debug", "human_required",
+                "pending_step", "fallback_flags", "elapsed_ms", "answer",
+                "status", "node", "next_node", "last_observation"):
+        assert restored_snapshot[key] == snapshot[key], f"roundtrip 丢字段 {key}"
     assert restored.query == final.query
     assert restored.steps == final.steps
     assert [r.name for r in restored.tool_results] == [
         r.name for r in final.tool_results
     ]
+
+
+def test_state_from_dict_missing_keys_use_safe_defaults():
+    """QA-T01：缺失字段走安全默认值，不抛异常。"""
+    restored = AgentState.from_dict({})
+    assert restored.trace_id == ""
+    assert restored.session_id == "default"
+    assert restored.query == ""
+    assert restored.steps == 0
+    assert restored.max_steps == 8
+    assert restored.evidences == []
+    assert restored.tool_results == []
+    assert restored.human_required is False
+    assert restored.last_debug == {}
+
+
+def test_state_from_dict_skips_invalid_list_items():
+    """QA-T01：``_restore_list`` 跳过无法 model_validate 的项，合法项仍还原。"""
+    restored = AgentState.from_dict(
+        {
+            "tool_results": [
+                {"name": "calculator", "ok": True, "elapsed_ms": 1.0,
+                 "output": 96, "error": None},
+                "not-a-model",
+                42,
+                {"broken": True},
+            ],
+            "evidences": ["bad", {"chunk_id": "c1", "modality": "text",
+                                   "snippet": "s", "score": 0.5}],
+        }
+    )
+    assert [r.name for r in restored.tool_results] == ["calculator"]
+    assert [e.chunk_id for e in restored.evidences] == ["c1"]
