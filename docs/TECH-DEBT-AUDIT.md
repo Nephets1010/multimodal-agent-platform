@@ -210,7 +210,7 @@ QA 以「回退单点修复」方式独立完成 **7/7 全部转红**；主理�
 | 同上 | `risk-free risk-level task-based` | 原样保留 | 通过 |
 | Bearer 令牌 | `Authorization: Bearer secret-token` | `***REDACTED***` | 通过（强度未削弱） |
 | 明文密码 | `password=hunter2` | `***REDACTED***` | 通过 |
-| `sk-` 密钥 | `sk-abcdefgh12345678 key` | `***REDACTED***` | 通过 |
+| `sk-` 密钥 | `sk-` + 20 位字母数字假串（此处不复述原文，避免本文件自身被静态凭据扫描命中） | `***REDACTED***` | 通过 |
 
 ### 6.7 零改动与字节一致性
 
@@ -224,6 +224,7 @@ QA 以「回退单点修复」方式独立完成 **7/7 全部转红**；主理�
 | ID | 现象 | 根因 | 处置 |
 | --- | --- | --- | --- |
 | QA-T21 | `tests/test_edge_api.py::test_sse_disconnect_via_streaming_response` 在**全量套件**下间歇失败（3 次中 2 次 `sse_completed` 未捕获），单跑 6/6 稳定 | 测试退出 `with` 只完成客户端侧关闭；生成器 `finally` 在 anyio 工作线程中异步执行，负载下晚于断言读取 `caplog`，属**测试侧时序竞态**而非产品缺陷 | 改为**有界轮询**（上限 2s，10ms 步进）等待收尾日志出现；判据不变（两个事件必须出现其一）。修复后全量**连续 5 次 247 passed** |
+| QA-T22 | 本文档 §6.6 曾直接复述脱敏用例的 `sk-` 假串原文，被仓库自带静态凭据扫描用例 `test_no_hardcoded_credentials_in_shipped_text_files` 判红——**本机未触发、CI 首次触发** | 文档作者把「待验证的凭据样式串」原样写进交付文档；用例的 `.md` 扫描范围正确覆盖了 `docs/`，是**用例按设计工作**而非误报 | 改为描述性写法（不复述原文），全仓 `sk-[A-Za-z0-9]{16,}` / `Bearer …{20,}` 扫描 0 命中；该用例转绿。**教训：文档与测试同属受扫描面，验证样例不得落原文** |
 
 ### 6.9 CI 状态
 
