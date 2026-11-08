@@ -230,11 +230,12 @@ QA 以「回退单点修复」方式独立完成 **7/7 全部转红**；主理�
 
 | 项 | 状态 |
 | --- | --- |
-| 基线提交 `8fcf22b` 的 GitHub Actions | **success**（run `42351880718`） |
-| 本轮提交在 GitHub Actions（Python **3.11** runner） | **未验证** —— 需推送后由远端实跑确认；本机仅有 3.13.12，本地无法等价替代 |
+| 基线提交 `8fcf22b` | **success**（run `42351880718`） |
+| 审计轮首次推送 `a174d31` | **failure**（run `42438075352`）——仅 `Pytest` 步骤红：仓库自带静态凭据扫描 `test_no_hardcoded_credentials_in_shipped_text_files` 命中**本文档 §6.6 复述的 `sk-` 样例原文**。属文档自伤，非产品缺陷；本机因扫描路径差异未触发，CI 首次触发（见 §6.8 QA-T22） |
+| 修复提交 `1778137` | **success**（run `42438294549`）—— 五步全绿（Compile / Pytest 247 passed / Demo smoke / Evaluator / Contract smoke），runner `Python 3.11.18` |
 | `make demo/test/run/eval` 四个目标 | **未验证** —— 本机无 `make`；已按 `Makefile` 注释中的逐字等价 `python3` 命令执行全部四条，结果见 §6.2 |
 
 ### 6.10 结论
 
-五步验证全绿、负向验证可复现转红、契约零漂移（7 组端点 / 11 字段 / SSE 顺序 / `done` 恒末帧 / `/health` 键集）、零改动文件字节未变、依赖未新增。
-唯一**未闭环**项是「GitHub Actions Python 3.11 runner 上的本轮快照」，须推送后核验，不以本地 3.13 结果替代。
+五步验证全绿（本机 3.13.12 + CI 3.11.18 双版本各跑一遍）、负向验证可复现转红、契约零漂移（7 组端点 / 11 字段 / SSE 顺序 / `done` 恒末帧 / `/health` 键集）、零改动文件字节未变、依赖未新增。
+唯一**未闭环**项是「`make` 四目标本身」（本机无 `make`，已用 `Makefile` 注释里的逐字等价命令全跑，但目标入口未被真实执行）。
